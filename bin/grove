@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# grove CLI shim — runs the workspace CLI via tsx against this repo, for the space named by
+# $GROVE_SPACE (falls back to the CLI's own default). Self-locating, so it works from any cwd.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec "$DIR/node_modules/.bin/tsx" "$DIR/packages/cli/src/cli.ts" "$@"

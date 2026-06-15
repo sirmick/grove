@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Launch Claude interactively, seeded with grove's system prompt (how to drive the CLI) plus this
+# project's own prompt (editable on the Project page → _grove/prompt.md). Interactive by design —
+# no -p/--print; you work with Claude in the loop. Extra args pass straight through to claude.
+set -euo pipefail
+if ! command -v claude >/dev/null 2>&1; then
+  echo "claude CLI not found on PATH. Install Claude Code, then run 'ai' again." >&2
+  exit 127
+fi
+exec claude --append-system-prompt "$(grove ai prompt)" "$@"

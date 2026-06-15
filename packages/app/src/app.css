@@ -1,0 +1,256 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161922;
+  --panel-2: #1b1f2a;
+  --border: #262b38;
+  --text: #d8dee9;
+  --muted: #8a93a6;
+  --accent: #4ec9a8;
+  --accent-2: #6aa3ff;
+  --amber: #e0a458;
+  --warn: #e06c75;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+/* top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.searchbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  flex: 0 1 360px;
+  color: var(--muted);
+}
+.searchbox input {
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  width: 100%;
+}
+.crumbs {
+  margin-left: auto;
+  font-size: 12px;
+}
+.actions button {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-left: 6px;
+}
+
+/* body */
+.body {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 0;
+}
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+  padding: 8px 0;
+}
+.center {
+  overflow: auto;
+  padding: 22px 28px;
+}
+
+/* tree */
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+.row:hover {
+  background: var(--panel-2);
+}
+.row.active {
+  background: #20283a;
+}
+.row.col .label {
+  font-weight: 600;
+}
+.row .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row svg {
+  flex: none;
+  color: var(--muted);
+}
+.row.col svg:last-of-type {
+  color: var(--accent);
+}
+.leaf svg {
+  color: var(--accent-2);
+}
+.leaf.status-review svg {
+  color: var(--amber);
+}
+.badge {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* pages */
+.page {
+  max-width: 860px;
+}
+.page h1 {
+  margin: 0 0 4px;
+}
+.page h3 {
+  margin: 22px 0 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+}
+.muted {
+  color: var(--muted);
+}
+.warn {
+  color: var(--warn);
+}
+.slug {
+  color: var(--muted);
+  font-size: 12px;
+}
+.linkish {
+  background: none;
+  border: 0;
+  color: var(--accent-2);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+.linkish:hover {
+  text-decoration: underline;
+}
+
+.grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.grid th,
+.grid td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.grid th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.records {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.records li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.banner {
+  background: #2a2418;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 12px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+.chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+.chip b {
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.body a {
+  color: var(--accent-2);
+}
+.body code {
+  background: var(--panel-2);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* terminal */
+.terminal {
+  background: #0b0d12;
+  border-top: 1px solid var(--border);
+  padding: 8px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+www/
+# Spaces are each their own git repo (grove's per-space model) — versioned independently, not
+# embedded in this repo. (Ship demo/docs via a seed step or submodules later.)
+spaces/
+*.log
+.env
+.DS_Store
+.opfs/
+packages/app/src/generated/
+test-space/
+test-results/
+playwright-report/
+.ingest-test/
+screenshots/

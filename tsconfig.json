@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "packages/core/src/**/*",
+    "packages/cli/src/**/*",
+    "packages/server/src/**/*",
+    "packages/ingest/src/**/*",
+    "scripts/**/*"
+  ]
+}
