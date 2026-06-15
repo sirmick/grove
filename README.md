@@ -58,8 +58,13 @@ The docs **are a grove space** (dog-fooding the tool), checked in at
 - Or switch to the **`docs`** space from the top-left selector to read/edit it like any space
   (it's a first-class, in-repo grove space: edits commit to this repo under `spaces/docs`).
 
-They cover guides (getting started, the CLI, editing, querying, the commit cycle, ingestion, the AI
-terminal), the concepts, the internals, and a queryable command reference.
+Jump in:
+
+- **Guides** ([`spaces/docs/guides`](spaces/docs/guides)) — [getting started](spaces/docs/guides/getting-started.md) · [using the CLI](spaces/docs/guides/using-the-cli.md) · [collections & schemas](spaces/docs/guides/collections-and-schemas.md) · [editing](spaces/docs/guides/editing.md) · [querying](spaces/docs/guides/querying.md) · [the commit cycle](spaces/docs/guides/the-commit-cycle.md) · [ingestion](spaces/docs/guides/ingestion.md) · [the AI terminal](spaces/docs/guides/the-ai-terminal.md)
+- **Concepts** ([`spaces/docs/concepts`](spaces/docs/concepts)) — [the model](spaces/docs/concepts/the-model.md) · [slugs & wikilinks](spaces/docs/concepts/slugs-and-wikilinks.md) · [schemas & extraction](spaces/docs/concepts/schemas-and-extraction.md) · [drafts, respins & the log](spaces/docs/concepts/drafts-respins-and-the-log.md) · [the five faces](spaces/docs/concepts/the-five-faces.md)
+- **Internals** ([`spaces/docs/internals`](spaces/docs/internals)) — [architecture](spaces/docs/internals/architecture.md) · [core engine](spaces/docs/internals/core-engine.md) · [ops registry](spaces/docs/internals/ops-registry.md) · [server tiers](spaces/docs/internals/three-tiers-server.md) · [worktree transactions](spaces/docs/internals/worktree-transactions.md) · [projections & db](spaces/docs/internals/projections-and-db.md) · [query engine](spaces/docs/internals/query-engine.md) · [frontend](spaces/docs/internals/frontend.md)
+- **Reference** ([`spaces/docs/reference`](spaces/docs/reference)) — one record per `grove` command.
+- The original design note lives in [`SPEC.md`](SPEC.md).
 
 ## Scripts
 
