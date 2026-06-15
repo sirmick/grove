@@ -1,0 +1,6 @@
+collection: cities
+extract: bold-label
+entry: form
+extends: base-place # country, population (integer), founded (integer year; negative = BCE)
+fields:
+  region: { type: string }

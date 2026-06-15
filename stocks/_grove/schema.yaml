@@ -1,0 +1,11 @@
+collection: stocks
+extract: bold-label
+entry: form
+fields:
+  ticker: { type: string }
+  sector:
+    type: enum
+    values: [Technology, Communication Services, Consumer Discretionary, Financials, Healthcare, Energy, Consumer Staples]
+  marketCap: { type: number } # USD billions
+  pe: { type: number } # price / earnings
+  dividendYield: { type: number } # percent
