@@ -12,7 +12,8 @@ import {
   writeFileSync,
 } from 'node:fs'
 import type { IncomingMessage, Server } from 'node:http'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { homedir } from 'node:os'
+import { basename, delimiter, dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DbMeta } from '@grove/core'
 import {
@@ -32,27 +33,44 @@ import { type WebSocket, WebSocketServer } from 'ws'
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const PORT = Number(process.env.GROVE_PORT ?? 5179)
 
-// Single-space mode when GROVE_SPACE is set (back-compat / e2e); otherwise a root of spaces
-// (GROVE_SPACES_ROOT, default <root>/spaces) where each subdir with a _grove/ is a selectable space.
+// Single-space mode when GROVE_SPACE is set (e2e); otherwise one or more roots where each subdir
+// with a _grove/ is a selectable space. GROVE_SPACES_ROOTS is a path-list override.
 const SINGLE = process.env.GROVE_SPACE
-const SPACES_ROOT = SINGLE ? null : (process.env.GROVE_SPACES_ROOT ?? join(ROOT, 'spaces'))
+const DEFAULT_SPACES_ROOTS = [join(ROOT, 'spaces'), join(homedir(), 'spaces')]
+function spaceRoots(): string[] {
+  if (SINGLE) return []
+  const roots = process.env.GROVE_SPACES_ROOTS
+  if (roots) return roots.split(delimiter).filter(Boolean)
+  return DEFAULT_SPACES_ROOTS
+}
+const SPACES_ROOTS = spaceRoots()
 
 function listSpaces(): { name: string; dir: string }[] {
   if (SINGLE) return [{ name: basename(SINGLE), dir: SINGLE }]
-  try {
-    return readdirSync(SPACES_ROOT as string)
-      .filter((n) => !n.startsWith('.'))
-      .map((n) => ({ name: n, dir: join(SPACES_ROOT as string, n) }))
-      .filter(({ dir }) => {
-        try {
-          return statSync(dir).isDirectory() && existsSync(join(dir, '_grove'))
-        } catch {
-          return false
+
+  const spaces: { name: string; dir: string }[] = []
+  const seen = new Set<string>()
+  for (const root of SPACES_ROOTS) {
+    let names: string[]
+    try {
+      names = readdirSync(root).filter((n) => !n.startsWith('.'))
+    } catch {
+      continue
+    }
+    for (const name of names) {
+      if (seen.has(name)) continue
+      const dir = join(root, name)
+      try {
+        if (statSync(dir).isDirectory() && existsSync(join(dir, '_grove'))) {
+          spaces.push({ name, dir })
+          seen.add(name)
         }
-      })
-  } catch {
-    return []
+      } catch {
+        // Ignore unreadable candidates.
+      }
+    }
   }
+  return spaces
 }
 
 function defaultSpace(): string {
@@ -234,7 +252,7 @@ app.get('/events', (c) => {
 
 const server = serve({ fetch: app.fetch, port: PORT }) as unknown as Server
 process.stdout.write(
-  `grove server on :${PORT} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOT}`}, default ${defaultSpace()})\n`,
+  `grove server on :${PORT} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOTS.join(', ') || '(none)'}`}, default ${defaultSpace()})\n`,
 )
 
 // Dev tier — interactive PTY over WebSocket (xterm in the browser). Local only.

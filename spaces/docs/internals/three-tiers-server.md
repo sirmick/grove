@@ -6,6 +6,8 @@
 `@grove/server` is a Hono server with the watcher running inside. It exposes three tiers; only the
 watcher is always-on.
 
+In multi-space mode, it scans selectable spaces from `GROVE_SPACES_ROOTS`, defaulting to the repo `spaces/` directory plus `~/spaces`. `GROVE_SPACE` still forces single-space mode.
+
 ## Read tier (the repo is the API)
 
 - `GET /corpus.json` — the raw `{ path → contents }` map (the FE computes over it).

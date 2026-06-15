@@ -264,7 +264,7 @@ export const ops = defineOps({
       },
     },
   },
-  // The prompt that seeds an interactive Claude session: grove's system prompt (generated from this
+  // The prompt that seeds an interactive AI session: grove's system prompt (generated from this
   // registry) + the space's editable project prompt (_grove/prompt.md, edited on the Project page).
   ai: {
     prompt: {

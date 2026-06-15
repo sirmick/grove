@@ -1,10 +1,63 @@
 #!/usr/bin/env bash
-# Launch Claude interactively, seeded with grove's system prompt (how to drive the CLI) plus this
-# project's own prompt (editable on the Project page → _grove/prompt.md). Interactive by design —
-# no -p/--print; you work with Claude in the loop. Extra args pass straight through to claude.
+# Launch an AI assistant interactively, seeded with grove system prompt (how to drive the CLI)
+# plus this project prompt (editable on the Project page -> _grove/prompt.md).
 set -euo pipefail
-if ! command -v claude >/dev/null 2>&1; then
-  echo "claude CLI not found on PATH. Install Claude Code, then run 'ai' again." >&2
-  exit 127
-fi
-exec claude --append-system-prompt "$(grove ai prompt)" "$@"
+
+usage() {
+  cat <<\USAGE
+Usage: ai [--codex|--claude] [provider args...]
+
+Launch an AI assistant interactively, seeded with grove + project context.
+Defaults to --codex.
+USAGE
+}
+
+provider="codex"
+provider_flag=""
+args=()
+
+while (($#)); do
+  case "$1" in
+    --codex|--claude)
+      if [[ -n "$provider_flag" ]]; then
+        echo "ai: choose only one of --codex or --claude" >&2
+        exit 2
+      fi
+      provider="${1#--}"
+      provider_flag="$1"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      args+=("$@")
+      break
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+prompt="$(grove ai prompt)"
+
+case "$provider" in
+  codex)
+    if ! command -v codex >/dev/null 2>&1; then
+      echo "codex CLI not found on PATH. Install Codex CLI, then run ai again." >&2
+      exit 127
+    fi
+    exec codex "${args[@]}" "$prompt"
+    ;;
+  claude)
+    if ! command -v claude >/dev/null 2>&1; then
+      echo "claude CLI not found on PATH. Install Claude Code, then run ai --claude again." >&2
+      exit 127
+    fi
+    exec claude --append-system-prompt "$prompt" "${args[@]}"
+    ;;
+esac

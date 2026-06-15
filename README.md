@@ -25,7 +25,7 @@ pnpm dev
 ```
 
 Then open **http://localhost:5180** (the Vite app; it proxies the API to the grove server on
-`:5179`). By default it serves the spaces under `spaces/` and opens the `demo` space.
+`:5179`). By default it serves selectable spaces from `spaces/` and `~/spaces`, and opens the `demo` space.
 
 Or use the helper scripts: **`./build.sh`** (install + build) and **`./dev.sh`** — the latter runs a
 network-exposed instance (app on `0.0.0.0:13000`, server on `:13001`); open
@@ -35,7 +35,7 @@ Useful env vars:
 
 | Var | Meaning |
 |---|---|
-| `GROVE_SPACES_ROOT` | directory of selectable spaces (default `./spaces`) |
+| `GROVE_SPACES_ROOTS` | path-list of selectable space roots (default `./spaces` plus `~/spaces`) |
 | `GROVE_DEFAULT_SPACE` | which space to open first |
 | `GROVE_SPACE` | force **single-space** mode at this path (used by e2e) |
 | `VITE_PORT` / `GROVE_PORT` | app / server ports (default `5180` / `5179`) |
@@ -73,7 +73,7 @@ Jump in:
 ## Scripts
 
 ```bash
-pnpm dev      # app + server (against ./spaces)
+pnpm dev      # app + server (against ./spaces and ~/spaces)
 pnpm build    # build the app
 pnpm check    # typecheck + biome + unit tests
 pnpm test     # unit tests (vitest)
@@ -83,8 +83,9 @@ pnpm e2e      # end-to-end tests (playwright)
 ## Layout
 
 `packages/core` (pure engine + node), `packages/cli`, `packages/server` (Hono), `packages/app`
-(Svelte 5), `packages/ingest` (Claude ingestion). Spaces live under `spaces/` — each is its own git
-repo, versioned independently of this one.
+(Svelte 5), `packages/ingest` (Claude ingestion). Spaces can live under `spaces/`, `~/spaces`, or any root in `GROVE_SPACES_ROOTS`.
+Except for checked-in `docs` and `demo`, each space should be its own git repo, versioned
+independently of Grove.
 
 ## License
 
