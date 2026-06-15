@@ -1,0 +1,5 @@
+collection: guides
+extract: bold-label
+entry: editor
+fields:
+  order: { type: integer }

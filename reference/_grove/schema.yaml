@@ -1,0 +1,7 @@
+collection: reference
+extract: bold-label
+entry: form
+fields:
+  namespace: { type: string }
+  verb: { type: string }
+  mutates: { type: boolean }

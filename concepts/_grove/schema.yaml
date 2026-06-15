@@ -1,0 +1,5 @@
+collection: concepts
+extract: bold-label
+entry: editor
+fields:
+  order: { type: integer }
