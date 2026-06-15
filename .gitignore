@@ -1,11 +1,13 @@
 node_modules/
 dist/
 www/
-# spaces/docs is checked in (a grove-managed in-repo space, imported via git subtree). Other
-# spaces (e.g. demo) are their own independent git repos, versioned outside this one.
+# spaces/docs and spaces/demo are checked in (grove-managed in-repo spaces, imported via git
+# subtree). Any other space is its own independent git repo, versioned outside this one.
 spaces/*
 !spaces/docs
+!spaces/demo
 spaces/docs/db/
+spaces/demo/db/
 *.log
 .env
 .DS_Store
