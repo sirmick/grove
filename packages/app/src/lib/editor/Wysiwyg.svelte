@@ -107,8 +107,9 @@
 
 <style>
   .wys-shell {
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
     background: var(--panel-2);
   }
@@ -117,6 +118,7 @@
     align-items: center;
     gap: 2px;
     flex-wrap: wrap;
+    flex: none;
     padding: 4px 6px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
@@ -137,7 +139,7 @@
   }
   .bar .b.on {
     background: var(--accent);
-    color: #03110d;
+    color: var(--accent-fg);
   }
   .bar .sep {
     width: 1px;
@@ -155,7 +157,8 @@
     max-width: 160px;
   }
   .wyswrap {
-    max-height: 55vh;
+    flex: 1;
+    min-height: 140px;
     overflow: auto;
   }
   .wyswrap :global(.wys) {

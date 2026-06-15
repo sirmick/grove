@@ -2,19 +2,12 @@
   import { composeMarkdown, dirOf, proseOf } from '@grove/core'
   import { hasDraft, setDraft } from '../db/drafts.svelte'
   import { commitAll, currentHead } from '../db/sync.svelte'
-  import RecordEditor from '../editor/RecordEditor.svelte'
   import { grove } from '../grove/client'
   import Icon from '../icons/Icon.svelte'
   import { renderMarkdown } from '../md'
   import { openRecord } from '../state.svelte'
 
   let { slug }: { slug: string } = $props()
-
-  let editing = $state(false)
-  $effect(() => {
-    void slug
-    editing = false
-  })
 
   const rec = $derived(grove.records.read(slug))
   const links = $derived(grove.links.of(slug))
@@ -42,25 +35,16 @@
   }
 </script>
 
-{#if editing}
-  <RecordEditor {slug} ondone={() => (editing = false)} />
-{:else if rec}
+{#if rec}
   <article class="page doc">
-    <div class="dochead">
-      <div>
-        {#if hasDraft(`${slug}.md`)}
-          <span class="banner draftbanner">Unsaved draft — Commit in the top bar</span>
-        {:else if rec.meta.status === 'review'}
-          <span class="banner">Draft — ingested, pending review</span>
-        {/if}
+    {#if hasDraft(`${slug}.md`)}
+      <span class="banner draftbanner">Unsaved draft — Save in the top bar</span>
+    {:else if rec.meta.status === 'review'}
+      <div class="dochead">
+        <span class="banner">Draft — ingested, pending review</span>
+        <button class="btn" onclick={promote}><Icon name="check" size={15} /> Promote</button>
       </div>
-      <div class="acts">
-        {#if rec.meta.status === 'review' && !hasDraft(`${slug}.md`)}
-          <button class="editbtn" onclick={promote}>Promote</button>
-        {/if}
-        <button class="editbtn" onclick={() => (editing = true)}>Edit</button>
-      </div>
-    </div>
+    {/if}
 
     <h1>{rec.meta.title}</h1>
     <code class="slug">{rec.meta.slug}</code>
@@ -97,24 +81,12 @@
   .dochead {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
   }
-  .editbtn {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 5px 14px;
-    cursor: pointer;
-  }
   .draftbanner {
-    background: #15281f;
+    background: var(--accent-bg);
     border-color: var(--accent);
     color: var(--accent);
-  }
-  .acts {
-    display: flex;
-    gap: 8px;
   }
 </style>

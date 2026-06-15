@@ -70,13 +70,13 @@
 
 <style>
   .cm {
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    height: 100%;
+    min-height: 140px;
     overflow: hidden;
     background: var(--panel-2);
   }
   .cm :global(.cm-editor) {
-    max-height: 55vh;
+    height: 100%;
   }
   .cm :global(.cm-scroller) {
     overflow: auto;

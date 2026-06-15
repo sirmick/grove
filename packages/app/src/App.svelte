@@ -1,42 +1,71 @@
 <script lang="ts">
-  import { hasDraft } from './lib/db/drafts.svelte'
+  import Chrome from './lib/Chrome.svelte'
   import DocView from './lib/doc/DocView.svelte'
+  import RecordEditor from './lib/editor/RecordEditor.svelte'
   import HelpPanel from './lib/help/HelpPanel.svelte'
+  import Icon from './lib/icons/Icon.svelte'
   import CollectionPage from './lib/overview/CollectionPage.svelte'
   import LogView from './lib/overview/LogView.svelte'
   import ProjectPage from './lib/overview/ProjectPage.svelte'
   import SearchResults from './lib/search/SearchResults.svelte'
-  import { activeTab, closeTab, setActive, tabsState } from './lib/state.svelte'
+  import { activeTab } from './lib/state.svelte'
+  import TabBar from './lib/TabBar.svelte'
   import Terminal from './lib/Terminal.svelte'
-  import TopBar from './lib/TopBar.svelte'
   import TreeView from './lib/tree/TreeView.svelte'
+  import { editor, setTermH, setTreeW, toggleTerm, toggleTree, ui } from './lib/ui.svelte'
 
   const active = $derived(activeTab())
   let helpOpen = $state(false)
+
+  // Leaving a tab drops edit mode (each doc opens read-only).
+  $effect(() => {
+    void active?.id
+    editor.editing = false
+  })
+
+  // Drag-to-resize: tree width = pointer x; terminal height = distance from the bottom.
+  function drag(set: (px: number) => void, fromBottom = false) {
+    return (e: PointerEvent) => {
+      e.preventDefault()
+      document.body.style.userSelect = 'none'
+      const move = (ev: PointerEvent) => set(fromBottom ? window.innerHeight - ev.clientY : ev.clientX)
+      const up = () => {
+        document.body.style.userSelect = ''
+        window.removeEventListener('pointermove', move)
+        window.removeEventListener('pointerup', up)
+      }
+      window.addEventListener('pointermove', move)
+      window.addEventListener('pointerup', up)
+    }
+  }
+  const dragTerm = drag(setTermH, true)
+  function termHeadDown(e: PointerEvent) {
+    if ((e.target as HTMLElement).closest('button')) return // let the collapse chevron click through
+    dragTerm(e)
+  }
 </script>
 
-<div class="app">
-  <TopBar onhelp={() => (helpOpen = true)} />
-  <div class="body">
-    <aside class="sidebar"><TreeView /></aside>
-    <main class="center">
-      <div class="tabstrip">
-        {#each tabsState.tabs as t (t.id)}
-          <div class="tab" class:active={t.id === tabsState.activeId}>
-            <button class="tablabel" onclick={() => setActive(t.id)}>
-              {t.title}{t.kind === 'doc' && hasDraft(`${t.ref}.md`) ? ' •' : ''}
-            </button>
-            <button class="tabclose" title="Close" onclick={() => closeTab(t.id)}>×</button>
-          </div>
-        {/each}
+<div class="app" style="--tree-w:{ui.treeW}px; --term-h:{ui.termH}px">
+  <div class="main">
+    {#if ui.treeOpen}
+      <div class="left">
+        <Chrome onhelp={() => (helpOpen = true)} />
+        <div class="tree-scroll"><TreeView /></div>
       </div>
-      <div class="content">
+      <div class="rz-v" role="separator" aria-label="Resize sidebar" onpointerdown={drag(setTreeW)}></div>
+    {:else}
+      <button class="rail" title="Show sidebar" onclick={toggleTree}><Icon name="chevron-right" size={16} /></button>
+    {/if}
+
+    <main class="right">
+      <TabBar />
+      <div class="content" class:flush={active?.kind === 'doc' && editor.editing}>
         {#if active}
           {#key active.id}
             {#if active.kind === 'collection'}
               <CollectionPage path={active.ref} />
             {:else if active.kind === 'doc'}
-              <DocView slug={active.ref} />
+              {#if editor.editing}<RecordEditor slug={active.ref} />{:else}<DocView slug={active.ref} />{/if}
             {:else if active.kind === 'project'}
               <ProjectPage />
             {:else if active.kind === 'log'}
@@ -51,67 +80,142 @@
       </div>
     </main>
   </div>
-  <footer class="terminal"><Terminal /></footer>
+
+  {#if ui.termOpen}
+    <footer class="terminal">
+      <div class="term-head" role="separator" aria-label="Resize terminal" onpointerdown={termHeadDown}>
+        <span class="th-label">terminal</span>
+        <span class="grow"></span>
+        <button class="th-btn" title="Collapse terminal" onclick={toggleTerm}><Icon name="chevron-down" size={14} /></button>
+      </div>
+      <div class="term-body"><Terminal /></div>
+    </footer>
+  {:else}
+    <button class="term-collapsed" title="Show terminal" onclick={toggleTerm}>
+      <Icon name="chevron-up" size={14} /> terminal
+    </button>
+  {/if}
 </div>
 
 {#if helpOpen}<HelpPanel onclose={() => (helpOpen = false)} />{/if}
 
 <style>
-  .center {
+  .main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .left {
+    width: var(--tree-w, 260px);
+    flex: none;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    padding: 0;
-    overflow: hidden;
-  }
-  .tabstrip {
-    display: flex;
-    gap: 2px;
-    padding: 6px 10px 0;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-  }
-  .tab {
-    display: flex;
-    align-items: center;
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-bottom: none;
-    border-radius: 6px 6px 0 0;
+    min-height: 0;
   }
-  .tab.active {
-    background: var(--panel-2);
+  .tree-scroll {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 0;
   }
-  .tablabel {
-    background: none;
+  .rail {
+    flex: none;
+    width: 18px;
+    background: var(--panel);
     border: 0;
-    color: var(--text);
-    padding: 5px 8px;
-    cursor: pointer;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .tabclose {
-    background: none;
-    border: 0;
+    border-right: 1px solid var(--border);
     color: var(--muted);
     cursor: pointer;
-    padding: 4px 6px;
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
   }
-  .tabclose:hover {
-    color: var(--warn);
+  .rail:hover {
+    color: var(--accent);
+  }
+  .right {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .content {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 22px 28px;
-    flex: 1;
+  }
+  .content.flush {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
   }
   .empty {
     padding: 20px;
   }
   .terminal {
-    height: 220px;
-    padding: 0;
+    height: var(--term-h, 200px);
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    background: var(--term-bg);
+    border-top: 1px solid var(--border);
     overflow: hidden;
+  }
+  .term-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    cursor: row-resize;
+    user-select: none;
+  }
+  .th-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .grow {
+    flex: 1;
+  }
+  .th-btn {
+    background: none;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    padding: 2px;
+  }
+  .th-btn:hover {
+    color: var(--accent);
+  }
+  .term-body {
+    flex: 1;
+    min-height: 0;
+    padding: 6px 10px;
+  }
+  .term-collapsed {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    background: var(--panel);
+    border: 0;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .term-collapsed:hover {
+    color: var(--accent);
   }
 </style>

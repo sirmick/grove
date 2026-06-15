@@ -1,15 +1,83 @@
 :root {
+  /* palette — surfaces */
   --bg: #0f1115;
   --panel: #161922;
   --panel-2: #1b1f2a;
+  --term-bg: #0b0d12;
   --border: #262b38;
+  --active: #20283a;
+  /* palette — text */
   --text: #d8dee9;
   --muted: #8a93a6;
+  /* palette — accents */
   --accent: #4ec9a8;
+  --accent-fg: #03110d; /* text on an accent fill */
   --accent-2: #6aa3ff;
   --amber: #e0a458;
+  --amber-bg: #2a2418;
+  --accent-bg: #15281f;
   --warn: #e06c75;
+  /* metrics */
+  --radius: 6px;
+  --ctrl-h: 26px;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+/* uniform controls — used across the top bar and elsewhere */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--ctrl-h);
+  padding: 0 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn.icon {
+  width: var(--ctrl-h);
+  padding: 0;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+/* segmented control (e.g. Document/Form/Source) */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.seg button {
+  background: var(--panel-2);
+  border: 0;
+  color: var(--muted);
+  height: var(--ctrl-h);
+  padding: 0 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.seg button.on {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
 }
 
 * {
@@ -27,71 +95,22 @@ body {
 }
 
 .app {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
 }
 
-/* top bar */
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 14px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+/* the sidebar drag handle (between the tree and the content). Drag-only; collapse lives on the
+   panes (the chevron in the chrome / terminal header). NB: the layout itself is in App.svelte. */
+.rz-v {
+  flex: none;
+  width: 4px;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.12s;
 }
-.brand {
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 0.5px;
-}
-.searchbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 8px;
-  flex: 0 1 360px;
-  color: var(--muted);
-}
-.searchbox input {
-  background: transparent;
-  border: 0;
-  outline: 0;
-  color: var(--text);
-  width: 100%;
-}
-.crumbs {
-  margin-left: auto;
-  font-size: 12px;
-}
-.actions button {
-  background: var(--panel-2);
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  margin-left: 6px;
-}
-
-/* body */
-.body {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  min-height: 0;
-}
-.sidebar {
-  background: var(--panel);
-  border-right: 1px solid var(--border);
-  overflow: auto;
-  padding: 8px 0;
-}
-.center {
-  overflow: auto;
-  padding: 22px 28px;
+.rz-v:hover {
+  background: var(--accent);
 }
 
 /* tree */
@@ -117,7 +136,7 @@ body {
   background: var(--panel-2);
 }
 .row.active {
-  background: #20283a;
+  background: var(--active);
 }
 .row.col .label {
   font-weight: 600;
@@ -246,11 +265,7 @@ body {
   border-radius: 4px;
 }
 
-/* terminal */
-.terminal {
-  background: #0b0d12;
-  border-top: 1px solid var(--border);
-  padding: 8px 14px;
+/* terminal font (the layout lives in App.svelte) */
+.term {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
 }

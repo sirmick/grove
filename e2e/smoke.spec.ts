@@ -36,8 +36,8 @@ test('edit + commit → real git commit (HEAD advances) + persists', async ({ pa
   await page.keyboard.press('Control+End') // append at the end, don't corrupt links mid-body
   await page.keyboard.type(' EDITED-BY-E2E')
 
-  await page.getByRole('button', { name: /^Commit \(/ }).click()
-  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /^Save \(/ }).click()
+  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
 
   const corpus = (await (await request.get(`${SERVER}/corpus.json`)).json()) as Record<
     string,
@@ -62,8 +62,8 @@ test('wysiwyg: doc opens in rich editor by default → edits round-trip to markd
   await page.keyboard.press('Control+End')
   await page.keyboard.type(' WYSIWYG-E2E')
 
-  await page.getByRole('button', { name: /^Commit \(/ }).click()
-  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /^Save \(/ }).click()
+  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
 
   const corpus = (await (await request.get(`${SERVER}/corpus.json`)).json()) as Record<
     string,
