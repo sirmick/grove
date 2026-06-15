@@ -1,0 +1,5 @@
+# Global base schema — shared place fields. Collections `extends: base-place`.
+fields:
+  country: { type: string }
+  population: { type: integer }
+  founded: { type: integer } # year; negative = BCE

@@ -1,0 +1,6 @@
+collection: capitals
+extract: bold-label
+entry: editor
+extends: base-place
+fields:
+  continent: { type: string }

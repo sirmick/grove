@@ -1,0 +1,5 @@
+collection: notes
+extract: bold-label
+entry: editor
+fields:
+  tags: { type: string }

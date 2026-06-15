@@ -1,0 +1,11 @@
+collection: trades
+extract: bold-label
+entry: form
+fields:
+  symbol: { type: string }
+  side: { type: enum, values: [long, short] }
+  entry: { type: number }
+  exit: { type: number }
+  opened: { type: date }
+  closed: { type: date }
+  status: { type: enum, values: [open, closed], default: open }

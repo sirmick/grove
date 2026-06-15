@@ -1,0 +1,10 @@
+form: new-trade
+target: "{slug}.md"
+template: trade
+fields:
+  - { field: symbol, widget: text, required: true }
+  - { field: side, widget: select, options: [long, short], required: true }
+  - { field: entry, widget: number, required: true }
+  - { field: exit, widget: number }
+  - { field: opened, widget: date, required: true }
+  - { field: closed, widget: date }

@@ -1,0 +1,7 @@
+collection: capitals-japan
+extract: bold-label
+entry: editor
+extends: base-place
+fields:
+  continent: { type: string }
+  prefecture: { type: string }
