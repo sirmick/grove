@@ -27,6 +27,10 @@ pnpm dev
 Then open **http://localhost:5180** (the Vite app; it proxies the API to the grove server on
 `:5179`). By default it serves the spaces under `spaces/` and opens the `demo` space.
 
+Or use the helper scripts: **`./build.sh`** (install + build) and **`./dev.sh`** — the latter runs a
+network-exposed instance (app on `0.0.0.0:13000`, server on `:13001`); open
+`http://<host-ip>:13000`. Both honor the env vars below (e.g. `VITE_PORT=8080 ./dev.sh`).
+
 Useful env vars:
 
 | Var | Meaning |
