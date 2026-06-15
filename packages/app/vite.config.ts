@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     host: process.env.VITE_HOST, // e.g. 0.0.0.0 to expose on the network; undefined = localhost
+    allowedHosts: true, // accept any Host header (LAN IPs, tunnels, custom hostnames)
     port: Number(process.env.VITE_PORT ?? 5180),
     strictPort: true,
     proxy: {
