@@ -1,0 +1,6 @@
+collection: internals
+extract: bold-label
+entry: editor
+fields:
+  area: { type: enum, values: [core, server, app, cli, ingest] }
+  order: { type: integer }
