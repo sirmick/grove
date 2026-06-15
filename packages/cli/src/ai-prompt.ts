@@ -26,6 +26,9 @@ How to work:
   worktree as a gate and only merges to main if it builds and merges cleanly.
 - Read before you write: \`grove collections tree\`, \`grove records list/read\`, \`grove query run\`,
   \`grove search run\`, \`grove links of\`.
+- Make structure when needed: \`grove collections create --name <x> [--parent <c>] [--entry form|editor]\`
+  for a new (optionally nested) collection; \`grove spaces create --name <x>\` for a whole new space
+  (a sibling of the current one). Then add records to it.
 
 Commands (\`grove <namespace> <verb> [options]\`):`
 

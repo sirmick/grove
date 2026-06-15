@@ -102,6 +102,18 @@ test('dev tier: terminal renders + exec channel runs grove → live reconcile', 
   await expect(page.getByText('Termexec').first()).toBeVisible({ timeout: 20000 })
 })
 
+test('dev tier: spaces create scaffolds a new space', async ({ request }) => {
+  // isolated root in /tmp so it can't pollute the repo; verifies the CLI verb via the exec channel
+  const root = `/tmp/grove-e2e-spaces-${Date.now()}`
+  const res = await request.post(`${SERVER}/exec`, {
+    data: { args: ['spaces', 'create', '--name', 'fresh', '--root', root] },
+  })
+  expect(res.ok()).toBeTruthy()
+  const { code, stdout } = (await res.json()) as { code: number; stdout: string }
+  expect(code).toBe(0)
+  expect(stdout).toContain('fresh') // { name: "fresh", path: …, headCommit: … }
+})
+
 test('ingestion: review draft → promote to verified', async ({ page, request }) => {
   await page.goto('/')
   // simulate an ingested review draft landing in papers

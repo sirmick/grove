@@ -1,6 +1,6 @@
 // The ops registry + handlers — the single source the CLI (and later MCP/HTTP) generate from.
 // Reads/writes operate over the space on disk via ctx.spaceDir.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   type Ctx,
@@ -43,6 +43,44 @@ function writeFile(ctx: Ctx, rel: string, content: string) {
 const flipStatus = (raw: string) => raw.replace(/^(\s*_status:\s*)review\s*$/m, '$1verified')
 
 export const ops = defineOps({
+  // Whole spaces (a space = a directory with a _grove/). The root defaults to the parent of the
+  // current --space, so `grove spaces create --name x` makes a sibling space.
+  spaces: {
+    list: {
+      input: z.object({ root: z.string().optional() }),
+      handler: (i, ctx) => {
+        const root = i.root ?? dirname(ctx.spaceDir)
+        try {
+          return readdirSync(root)
+            .filter((n) => !n.startsWith('.'))
+            .filter((n) => {
+              try {
+                return statSync(join(root, n)).isDirectory() && existsSync(join(root, n, '_grove'))
+              } catch {
+                return false
+              }
+            })
+        } catch {
+          return []
+        }
+      },
+    },
+    create: {
+      input: z.object({ name: z.string(), root: z.string().optional() }),
+      handler: (i, ctx) => {
+        const root = i.root ?? dirname(ctx.spaceDir)
+        const dir = join(root, i.name)
+        if (existsSync(join(dir, '_grove'))) throw new Error(`space already exists: ${dir}`)
+        const title = i.name.charAt(0).toUpperCase() + i.name.slice(1)
+        mkdirSync(join(dir, '_grove'), { recursive: true })
+        writeFileSync(join(dir, '_grove/overview.md'), `# ${title}\n\nA new grove space.\n`)
+        writeFileSync(join(dir, '_grove/prompt.md'), `This is the "${i.name}" space.\n`)
+        gitCommitAll(dir, `grove: create space ${i.name}`) // inits the space's git (if standalone)
+        const meta = buildSpace(dir)
+        return { name: i.name, path: dir, headCommit: meta.headCommit }
+      },
+    },
+  },
   collections: {
     tree: { input: z.object({}), handler: (_i, ctx) => buildTree(corpus(ctx)) },
     get: {

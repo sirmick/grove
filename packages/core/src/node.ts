@@ -32,7 +32,13 @@ export function loadCorpusFromDir(dir: string): Corpus {
 }
 
 function git(args: string[], cwd: string): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  // Discard stderr: failures are expected on probes (rev-parse/check-ignore outside a repo) and are
+  // handled via catch + fallbacks; we don't want git's "fatal: …" leaking to the CLI/terminal.
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim()
 }
 
 function isInsideWorkTree(dir: string): boolean {
