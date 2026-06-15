@@ -1,0 +1,3 @@
+# Global ingestion defaults (collections may override in their own _grove/rules.yaml).
+dedup: content-hash
+auto_promote: false

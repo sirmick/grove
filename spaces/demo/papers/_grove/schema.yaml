@@ -1,0 +1,7 @@
+collection: papers
+extract: bold-label
+entry: editor
+fields:
+  authors: { type: string }
+  year: { type: integer }
+  tags: { type: string }
