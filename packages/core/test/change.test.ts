@@ -55,3 +55,34 @@ describe('change transaction (mechanism a)', () => {
     )
   })
 })
+
+describe('managed in-repo space', () => {
+  let repo: string
+  let sub: string
+
+  beforeEach(() => {
+    // An enclosing repo that TRACKS a space at <repo>/content (no nested .git there).
+    repo = mkdtempSync(join(tmpdir(), 'grove-encl-'))
+    sub = join(repo, 'content')
+    cpSync(demo, sub, { recursive: true, filter: (s) => !/[/\\](db|\.git)([/\\]|$)/.test(s) })
+    gitCommitAll(repo, 'init enclosing repo') // inits the enclosing repo, tracks content/
+  })
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true })
+  })
+
+  it('commits to the enclosing repo at the subpath — no nested repo, scoped metadata', () => {
+    const before = headCommit(sub)
+    const res = commitChangeset(
+      sub,
+      { 'notes/managed.md': '# Managed\n\n**Tags:** x\n\nhi\n' },
+      'add managed note',
+    )
+    expect(res.ok).toBe(true)
+    expect(existsSync(join(sub, '.git'))).toBe(false) // never nested a repo inside the space
+    expect(existsSync(join(sub, 'notes/managed.md'))).toBe(true)
+    expect(res.headCommit).not.toBe(before)
+    expect(headCommit(sub)).toBe(res.headCommit) // headCommit scoped to the subpath
+  })
+})

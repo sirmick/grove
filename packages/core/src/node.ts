@@ -35,8 +35,47 @@ function git(args: string[], cwd: string): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
 }
 
+function isInsideWorkTree(dir: string): boolean {
+  try {
+    return git(['rev-parse', '--is-inside-work-tree'], dir) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function ignoredByRepo(dir: string): boolean {
+  try {
+    git(['check-ignore', '-q', '.'], dir)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// A space with no .git that lives inside an enclosing repo which TRACKS it (doesn't ignore it) is
+// "managed" by that repo: we don't nest a repo, and its commits + git metadata are scoped to its
+// subpath. (A space the enclosing repo ignores — e.g. spaces/demo — is meant to be its own repo.)
+function managedByEnclosing(dir: string): boolean {
+  return !existsSync(join(dir, '.git')) && isInsideWorkTree(dir) && !ignoredByRepo(dir)
+}
+
+// The space's path within its (enclosing) repo — '' when the space IS the repo root.
+function spacePrefix(dir: string): string {
+  try {
+    return relative(git(['rev-parse', '--show-toplevel'], dir), dir)
+      .split(sep)
+      .join('/')
+  } catch {
+    return ''
+  }
+}
+
 export function headCommit(dir: string): string {
   try {
+    const prefix = spacePrefix(dir)
+    // In-repo space → the last commit that touched it (not the repo-wide HEAD), so its "version"
+    // and the journal stay local to the space rather than tracking unrelated project commits.
+    if (prefix) return git(['log', '-1', '--format=%H', '--', '.'], dir) || 'dev'
     return git(['rev-parse', 'HEAD'], dir)
   } catch {
     return 'dev'
@@ -74,11 +113,9 @@ function gitLog(spaceDir: string, n: number): LogEntry[] {
   try {
     const top = git(['rev-parse', '--show-toplevel'], spaceDir)
     const prefix = relative(top, spaceDir).split(sep).join('/')
-    const out = execFileSync(
-      'git',
-      ['log', `-n${n}`, '--pretty=format:%x01%H%x00%cI%x00%s', '--name-status'],
-      { cwd: spaceDir, encoding: 'utf8' },
-    )
+    const args = ['log', `-n${n}`, '--pretty=format:%x01%H%x00%cI%x00%s', '--name-status']
+    if (prefix) args.push('--', '.') // in-repo space → only its commits, not the whole project's
+    const out = execFileSync('git', args, { cwd: spaceDir, encoding: 'utf8' })
     return parseLog(out, prefix)
   } catch {
     return []
@@ -148,9 +185,11 @@ export function buildSpace(spaceDir: string): DbMeta {
 
 const GIT_ID = ['-c', 'user.email=grove@local', '-c', 'user.name=grove']
 
-/** Make the space its own git repo on first use (gitignoring derived db/). Idempotent. */
+/** Make the space its own git repo on first use (gitignoring derived db/). Idempotent.
+ *  No-op when the space is managed by an enclosing repo (we don't nest a repo inside one). */
 export function ensureGitRepo(dir: string) {
   if (existsSync(join(dir, '.git'))) return
+  if (managedByEnclosing(dir)) return
   try {
     git(['init', '-q'], dir)
     writeFileSync(join(dir, '.gitignore'), 'db/\n*.tmp\n')
@@ -164,9 +203,12 @@ export function ensureGitRepo(dir: string) {
 /** Stage + commit all pending changes in the space; returns the new HEAD. */
 export function gitCommitAll(dir: string, message: string): string {
   ensureGitRepo(dir)
+  // For an in-repo space, scope add/commit to its subpath so it never sweeps up unrelated changes
+  // elsewhere in the enclosing repo.
+  const scope = managedByEnclosing(dir) ? ['--', '.'] : []
   try {
-    git(['add', '-A'], dir)
-    git([...GIT_ID, 'commit', '-q', '-m', message, '--allow-empty'], dir)
+    git(['add', '-A', ...scope], dir)
+    git([...GIT_ID, 'commit', '-q', '-m', message, '--allow-empty', ...scope], dir)
   } catch {
     // nothing to commit / git error
   }
@@ -280,6 +322,25 @@ export function commitChangeset(
   files: Record<string, string>,
   message: string,
 ): CommitResult {
+  // In-repo (managed) space: commit straight to the enclosing repo, scoped to the space — no
+  // worktree (history belongs to the enclosing repo). Mirrors the /incoming write+commit+respin.
+  if (managedByEnclosing(spaceDir)) {
+    try {
+      for (const [rel, content] of Object.entries(files)) {
+        const target = join(spaceDir, rel)
+        mkdirSync(dirname(target), { recursive: true })
+        const tmp = `${target}.tmp`
+        writeFileSync(tmp, content)
+        renameSync(tmp, target)
+      }
+      gitCommitAll(spaceDir, message)
+      const meta = buildSpace(spaceDir)
+      return { ok: true, headCommit: meta.headCommit, meta }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  }
+  // Standalone space repo: the build-gated worktree transaction.
   const ch = beginChange(spaceDir)
   for (const [rel, content] of Object.entries(files)) writeToChange(ch.worktree, rel, content)
   return commitChange(spaceDir, ch.id, message)
