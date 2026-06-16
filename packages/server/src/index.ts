@@ -265,34 +265,134 @@ server.on('upgrade', (req, socket, head) => {
   }
 })
 
+const PTY_IDLE_MS = Number(process.env.GROVE_PTY_IDLE_MS ?? 24 * 60 * 60 * 1000)
+const PTY_HEARTBEAT_MS = 30000
+const PTY_SCROLLBACK_MAX = 128 * 1024
+
+interface PtySession {
+  key: string
+  pty: ReturnType<typeof ptySpawn>
+  clients: Set<WebSocket>
+  scrollback: string
+  idleTimer?: ReturnType<typeof setTimeout>
+}
+
+const ptySessions = new Map<string, PtySession>()
+
+function ptySessionId(req: IncomingMessage): string {
+  const url = new URL(req.url ?? '/pty', 'http://localhost')
+  const sid = url.searchParams.get('sid') ?? 'default'
+  return /^[A-Za-z0-9_-]{1,80}$/.test(sid) ? sid : 'default'
+}
+
+function sessionKey(dir: string, sid: string): string {
+  return `${dir}\0${sid}`
+}
+
+function sendToSession(session: PtySession, data: string) {
+  for (const client of [...session.clients]) {
+    if (client.readyState !== client.OPEN) {
+      session.clients.delete(client)
+      continue
+    }
+    try {
+      client.send(data)
+    } catch {
+      session.clients.delete(client)
+      client.terminate()
+    }
+  }
+}
+
+function schedulePtyIdleCleanup(session: PtySession) {
+  if (session.idleTimer) clearTimeout(session.idleTimer)
+  session.idleTimer = setTimeout(() => {
+    if (session.clients.size) return
+    ptySessions.delete(session.key)
+    session.pty.kill()
+  }, PTY_IDLE_MS)
+}
+
+function rememberPtyOutput(session: PtySession, data: string) {
+  session.scrollback += data
+  if (session.scrollback.length > PTY_SCROLLBACK_MAX) {
+    session.scrollback = session.scrollback.slice(-PTY_SCROLLBACK_MAX)
+  }
+}
+
+function ptyFor(dir: string, sid: string): PtySession {
+  const key = sessionKey(dir, sid)
+  const existing = ptySessions.get(key)
+  if (existing) return existing
+
+  const session: PtySession = {
+    key,
+    clients: new Set(),
+    scrollback: '',
+    pty: ptySpawn('bash', ['--rcfile', join(ROOT, 'bin/term-init.sh'), '-i'], {
+      name: 'xterm-color',
+      cwd: dir,
+      env: { ...process.env, GROVE_SPACE: dir, GROVE_ROOT: ROOT },
+      cols: 80,
+      rows: 24,
+    }),
+  }
+  session.pty.onData((d) => {
+    rememberPtyOutput(session, d)
+    sendToSession(session, d)
+  })
+  session.pty.onExit(() => {
+    ptySessions.delete(session.key)
+    if (session.idleTimer) clearTimeout(session.idleTimer)
+    for (const client of [...session.clients]) {
+      if (client.readyState === client.OPEN) client.close()
+    }
+    session.clients.clear()
+  })
+  ptySessions.set(key, session)
+  return session
+}
+
 function attachPty(ws: WebSocket, req: IncomingMessage) {
-  // Open the terminal IN the request's space, with grove + ai on PATH via our rcfile.
   const { dir } = reqSpace(req.headers.cookie)
-  const pty = ptySpawn('bash', ['--rcfile', join(ROOT, 'bin/term-init.sh'), '-i'], {
-    name: 'xterm-color',
-    cwd: dir,
-    env: { ...process.env, GROVE_SPACE: dir, GROVE_ROOT: ROOT },
-    cols: 80,
-    rows: 24,
-  })
-  pty.onData((d) => {
-    if (ws.readyState === ws.OPEN) ws.send(d)
-  })
-  pty.onExit(() => {
-    if (ws.readyState === ws.OPEN) ws.close()
+  // Open or resume the terminal IN the request's space, with grove + ai on PATH via our rcfile.
+  const session = ptyFor(dir, ptySessionId(req))
+  for (const client of [...session.clients]) client.close(4000, 'replaced')
+  session.clients.clear()
+  session.clients.add(ws)
+  if (session.idleTimer) clearTimeout(session.idleTimer)
+  if (session.scrollback) ws.send(session.scrollback)
+
+  let alive = true
+  const heartbeat = setInterval(() => {
+    if (ws.readyState !== ws.OPEN) return
+    if (!alive) {
+      ws.terminate()
+      return
+    }
+    alive = false
+    ws.ping()
+  }, PTY_HEARTBEAT_MS)
+
+  ws.on('pong', () => {
+    alive = true
   })
   ws.on('message', (raw) => {
     const s = raw.toString()
     if (s[0] === 'r') {
       try {
         const { cols, rows } = JSON.parse(s.slice(1)) as { cols: number; rows: number }
-        pty.resize(cols, rows)
+        session.pty.resize(cols, rows)
       } catch {
         // ignore malformed resize
       }
     } else if (s[0] === 'i') {
-      pty.write(s.slice(1))
+      session.pty.write(s.slice(1))
     }
   })
-  ws.on('close', () => pty.kill())
+  ws.on('close', () => {
+    clearInterval(heartbeat)
+    session.clients.delete(ws)
+    if (!session.clients.size) schedulePtyIdleCleanup(session)
+  })
 }
