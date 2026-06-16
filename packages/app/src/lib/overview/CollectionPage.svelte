@@ -29,6 +29,8 @@
     ...(detail.manifest.schema
       ? [{ label: 'schema.yaml', path: `${path}/_grove/schema.yaml`, language: 'yaml' as const }]
       : []),
+    // Always offered (creatable on save) — the per-collection prompt fed to the AI on launch.
+    { label: 'prompt.md', path: `${path}/_grove/prompt.md`, language: 'markdown' as const },
     ...detail.manifest.templates.map((t) => ({
       label: `template: ${t}`,
       path: `${path}/_grove/templates/${t}`,

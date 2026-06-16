@@ -61,7 +61,9 @@ export function extractFields(
     fields[key] = coerce(hint.type, m[2] ?? '')
     seen.add(key)
   }
-  for (const k of Object.keys(schema.fields)) if (!seen.has(k)) warnings.push(`missing field: ${k}`)
+  // Optional by default: only warn for a declared-required field that no line supplied.
+  for (const k of Object.keys(schema.fields))
+    if (schema.fields[k]?.required && !seen.has(k)) warnings.push(`missing field: ${k}`)
   return { fields, warnings }
 }
 

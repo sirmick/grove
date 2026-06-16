@@ -7,6 +7,7 @@ export interface FieldHint {
   type: FieldType
   values?: string[] // for enum
   default?: unknown
+  required?: boolean // fields are optional by default; only `required: true` warns when absent
 }
 
 export interface SchemaHint {

@@ -77,5 +77,7 @@ export function collectionScaffold(o: CollectionScaffoldOpts): Record<string, st
   return {
     '_grove/schema.yaml': `${stringifyYaml(schema).trimEnd()}\n`,
     '_grove/overview.md': `# ${label(o.name)}\n\nA new collection.\n`,
+    // Per-collection guidance fed to the AI on launch (alongside the space's _grove/prompt.md).
+    '_grove/prompt.md': `# ${label(o.name)}\n\nGuidance for working in the ${label(o.name)} collection.\n`,
   }
 }

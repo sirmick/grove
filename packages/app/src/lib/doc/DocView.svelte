@@ -50,9 +50,11 @@
     <code class="slug">{rec.meta.slug}</code>
 
     {#if fields.length}
-      <div class="chips">
-        {#each fields as [k, v]}<span class="chip"><b>{k}</b> {String(v)}</span>{/each}
-      </div>
+      <dl class="fields">
+        {#each fields as [k, v]}
+          <div class="field"><dt>{k}</dt><dd>{String(v)}</dd></div>
+        {/each}
+      </dl>
     {/if}
 
     <div class="body">{@html renderMarkdown(proseOf(rec.body))}</div>

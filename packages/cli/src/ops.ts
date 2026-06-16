@@ -8,6 +8,7 @@ import {
   backlinks,
   buildTree,
   collectionDetail,
+  collectionPaths,
   collectionScaffold,
   composeMarkdown,
   defineOps,
@@ -291,14 +292,22 @@ export const ops = defineOps({
     },
   },
   // The prompt that seeds an interactive AI session: grove's system prompt (generated from this
-  // registry) + the space's editable project prompt (_grove/prompt.md, edited on the Project page).
+  // registry) + the space's editable project prompt (_grove/prompt.md, edited on the Project page)
+  // + each collection's own _grove/prompt.md, so per-collection guidance is read on launch.
   ai: {
     prompt: {
       input: z.object({}),
       handler: (_i, ctx) => {
-        const project = corpus(ctx)['_grove/prompt.md']
-        const system = buildSystemPrompt(ops)
-        return project ? `${system}\n\n---\n\n# This project\n\n${project}` : system
+        const c = corpus(ctx)
+        const sections = [buildSystemPrompt(ops)]
+        const project = c['_grove/prompt.md']
+        if (project) sections.push(`# This project\n\n${project.trim()}`)
+        const collections = collectionPaths(c)
+          .map((dir) => [dir, c[`${dir}/_grove/prompt.md`]] as const)
+          .filter(([, p]) => p?.trim())
+          .map(([dir, p]) => `## ${dir}\n\n${(p as string).trim()}`)
+        if (collections.length) sections.push(`# Collections\n\n${collections.join('\n\n')}`)
+        return sections.join('\n\n---\n\n')
       },
     },
   },
