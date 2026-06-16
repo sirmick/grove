@@ -700,17 +700,33 @@ export function commitChangeset(
   return commitChange(spaceDir, ch.id, message)
 }
 
-/** Watch the space (excluding db/ and .git/) → debounced rebuild. Returns the watcher. */
-export function watchSpace(spaceDir: string, onBuild: (m: DbMeta) => void) {
-  const watcher = chokidar.watch(spaceDir, {
-    ignoreInitial: true,
-    ignored: (p: string) => p.includes(`${sep}db${sep}`) || p.includes(`${sep}.git${sep}`),
-  })
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const rebuild = () => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => onBuild(buildSpace(spaceDir)), 150)
+/** Read the last-built db/meta.json without rebuilding. Null if the space hasn't been built yet. */
+export function readMeta(spaceDir: string): DbMeta | null {
+  try {
+    return JSON.parse(readFileSync(join(spaceDir, 'db', 'meta.json'), 'utf8')) as DbMeta
+  } catch {
+    return null
   }
-  watcher.on('all', rebuild)
+}
+
+export function watchSpace(spaceDir: string, onBuild: (m: DbMeta) => void) {
+  // Watch only db/respins.json — the single file every build rewrites — so each space costs one
+  // inotify watch (not a recursive content tree, which exhausts fs.inotify.max_user_watches). No
+  // rebuild here: whoever wrote respins.json already built (rebuilding would rewrite it and loop);
+  // we just read meta + broadcast. External respins (e.g. a CLI commit) thus reach clients;
+  // in-app edits already broadcast inline.
+  const watcher = chokidar.watch(join(spaceDir, 'db', 'respins.json'), { ignoreInitial: true })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const reload = () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      const m = readMeta(spaceDir)
+      if (m) onBuild(m)
+    }, 150)
+  }
+  watcher.on('all', reload)
+  // Never let a watcher failure (e.g. ENOSPC: inotify limit) kill the server — live reload is a
+  // convenience; log and carry on without it.
+  watcher.on('error', (e) => console.warn(`watchSpace(${spaceDir}) disabled: ${(e as Error).message}`))
   return watcher
 }
