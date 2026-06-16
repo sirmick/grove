@@ -1,6 +1,6 @@
 // Pure read engine over a Corpus. Runs identically in Node (tests, watcher) and the browser.
 import type { Corpus } from './corpus'
-import { dirOf, isUnderGrove } from './corpus'
+import { baseName, dirOf, isUnderGrove } from './corpus'
 import { extractFields, parseFrontmatter, parseLinks, titleOf } from './parse'
 import { mergeSchema, parseSchema } from './schema'
 import type {
@@ -41,7 +41,10 @@ export function resolveSchema(corpus: Corpus, dir: string): SchemaHint {
 
 function leafPaths(corpus: Corpus, dir: string): string[] {
   return Object.keys(corpus)
-    .filter((p) => p.endsWith('.md') && !isUnderGrove(p) && dirOf(p) === dir)
+    .filter(
+      (p) =>
+        p.endsWith('.md') && !isUnderGrove(p) && baseName(p) !== 'README.md' && dirOf(p) === dir,
+    )
     .sort()
 }
 
@@ -133,7 +136,7 @@ export function buildTree(corpus: Corpus): TreeNode[] {
 
 export function allRecordSlugs(corpus: Corpus): string[] {
   return Object.keys(corpus)
-    .filter((p) => p.endsWith('.md') && !isUnderGrove(p))
+    .filter((p) => p.endsWith('.md') && !isUnderGrove(p) && baseName(p) !== 'README.md')
     .map((p) => p.slice(0, -3))
     .sort()
 }
@@ -141,7 +144,7 @@ export function allRecordSlugs(corpus: Corpus): string[] {
 export function allLinks(corpus: Corpus): LinkEdge[] {
   const edges: LinkEdge[] = []
   for (const [p, raw] of Object.entries(corpus)) {
-    if (!p.endsWith('.md') || isUnderGrove(p)) continue
+    if (!p.endsWith('.md') || isUnderGrove(p) || baseName(p) === 'README.md') continue
     edges.push(...parseLinks(p.slice(0, -3), parseFrontmatter(raw).body))
   }
   return edges
@@ -177,7 +180,7 @@ export interface SearchDoc {
 export function searchDocs(corpus: Corpus): SearchDoc[] {
   const docs: SearchDoc[] = []
   for (const [p, raw] of Object.entries(corpus)) {
-    if (!p.endsWith('.md') || isUnderGrove(p)) continue
+    if (!p.endsWith('.md') || isUnderGrove(p) || baseName(p) === 'README.md') continue
     const { body } = parseFrontmatter(raw)
     docs.push({ slug: p.slice(0, -3), title: titleOf(body, p), body })
   }

@@ -26,7 +26,11 @@ import {
   buildSpace,
   commitChange,
   gitCommitAll,
+  gitHooksStatus,
+  installGitHooks,
   loadCorpusFromDir,
+  postCommitForRepo,
+  prepareCommitForRepo,
 } from '@grove/core/node'
 import { ingestSource } from '@grove/ingest'
 import { z } from 'zod'
@@ -245,8 +249,30 @@ export const ops = defineOps({
       }),
     },
   },
+  hooks: {
+    status: {
+      input: z.object({}),
+      handler: (_i, ctx) => gitHooksStatus(ctx.spaceDir),
+    },
+    install: {
+      input: z.object({}),
+      handler: (_i, ctx) => installGitHooks(ctx.spaceDir),
+    },
+    'prepare-commit-msg': {
+      input: z.object({ file: z.string() }),
+      handler: (i) => prepareCommitForRepo(process.cwd(), i.file),
+    },
+    'commit-msg': {
+      input: z.object({ file: z.string() }),
+      handler: (i) => prepareCommitForRepo(process.cwd(), i.file),
+    },
+    'post-commit': {
+      input: z.object({}),
+      handler: () => postCommitForRepo(process.cwd()),
+    },
+  },
   // Mechanism (a): the worktree transaction, same engine the UI commits through. Take out a
-  // change (a worktree off HEAD), mutate its files, then commit (build-gated merge → respin).
+  // change, mutate its worktree files, then prepare generated files and commit/build/merge.
   change: {
     begin: {
       input: z.object({}),

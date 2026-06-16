@@ -13,9 +13,10 @@ touching disk. Drafts persist across reloads and flush on **Commit**. See [[guid
 ## Respin
 
 A **respin** is a full rebuild of the derived [[internals/projections-and-db|`db/`]] from the
-markdown. It runs after every committed change (and when the watcher sees an external edit). One
-respin = load corpus → project → write `db/*` → record the result. The app awaits the respin, then
-reloads — a brief "stop the world", never a half-built state.
+markdown. It runs after commits land (and when the watcher sees an external edit). A plain
+`git commit` also goes through grove's hook: generated README files are amended into the commit, then
+`db/*` is rebuilt. One respin = load corpus → project → write `db/*` → record the result. The app
+awaits the respin, then reloads — a brief "stop the world", never a half-built state.
 
 ## The log
 

@@ -16,7 +16,8 @@ grove search run --q tokyo
 
 ## Targeting a space
 
-The space is `$GROVE_SPACE`, or `--space <dir>`, or `spaces/demo` by default:
+The space is `$GROVE_SPACE`, or `--space <dir>`, or the current directory when it contains
+`_grove/`. Outside a space, grove falls back to `spaces/demo`:
 
 ```
 grove --space spaces/docs collections tree
@@ -27,8 +28,10 @@ In the [[guides/the-ai-terminal|terminal]] `grove` is already on PATH and pointe
 ## Reading vs writing
 
 Read verbs (`tree`, `list`, `read`, `query`, `search`, `links`, `schema`) never change anything.
-Write verbs commit in place and trigger a [[concepts/drafts-respins-and-the-log|respin]] — see
-[[guides/the-commit-cycle]]. The full list lives in **reference** (queryable).
+Some write helpers commit in place when they represent a sensible single change. For larger edits,
+change files normally and make one `git commit`; grove's hook generates README files and triggers the
+[[concepts/drafts-respins-and-the-log|respin]]. See [[guides/the-commit-cycle]]. The full command
+list lives in **reference** (queryable).
 
 The CLI is generated from the [[internals/ops-registry|ops registry]], so it never drifts from the
 JS API.

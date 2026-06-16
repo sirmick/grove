@@ -202,20 +202,48 @@ body {
   text-decoration: underline;
 }
 
+.tableframe {
+  max-width: 100%;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
 .grid {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   font-size: 13px;
 }
 .grid th,
 .grid td {
   text-align: left;
-  padding: 5px 8px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--border);
+  line-height: 1.35;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.grid th + th,
+.grid td + td {
+  border-left: 1px solid rgba(255, 255, 255, 0.035);
 }
 .grid th {
-  color: var(--muted);
+  background: var(--panel-2);
+  color: #b7c0d2;
   font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.grid tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.018);
+}
+.grid tbody tr:hover td {
+  background: var(--active);
+}
+.grid tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .records {
@@ -263,6 +291,52 @@ body {
   background: var(--panel-2);
   padding: 1px 4px;
   border-radius: 4px;
+}
+.body table,
+.overview table,
+.hdoc table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 12px 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.body th,
+.body td,
+.overview th,
+.overview td,
+.hdoc th,
+.hdoc td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+  vertical-align: top;
+}
+.body th + th,
+.body td + td,
+.overview th + th,
+.overview td + td,
+.hdoc th + th,
+.hdoc td + td {
+  border-left: 1px solid rgba(255, 255, 255, 0.035);
+}
+.body th,
+.overview th,
+.hdoc th {
+  background: var(--panel-2);
+  color: #b7c0d2;
+  font-weight: 600;
+}
+.body tr:last-child td,
+.overview tr:last-child td,
+.hdoc tr:last-child td {
+  border-bottom: 0;
 }
 
 /* terminal font (the layout lives in App.svelte) */

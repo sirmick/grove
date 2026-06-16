@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "dev": "node --watch --import tsx src/index.ts",
+    "start": "node --import tsx src/index.ts"
   },
   "dependencies": {
     "@grove/core": "workspace:*",

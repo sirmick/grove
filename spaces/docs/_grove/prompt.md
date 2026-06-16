@@ -6,6 +6,7 @@ This space is grove's own documentation. When you work here:
   twice.
 - guides are task-oriented ("how do I…"); concepts explain the model; internals explain the build;
   reference is one record per CLI command.
-- Pages carry an `**Order:**` field for sequencing within a collection. Reference records carry
-  `**Namespace:**`, `**Verb:**`, `**Mutates:**`.
+- Put each bold-label field on its own real Markdown line. Pages carry an `**Order:**` field for
+  sequencing within a collection. Reference records carry `**Namespace:**`, `**Verb:**`, and
+  `**Mutates:**` as separate field lines.
 - New or uncertain material: land it as `_status: review` and note what needs checking.

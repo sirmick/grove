@@ -12,18 +12,23 @@ How a grove is shaped:
   collection (free prose) or a "record" collection (structured fields), set by its schema's entry.
 - Each leaf is a markdown file. Its **slug** is its path minus ".md" (e.g. cities/tokyo). Slugs are
   the stable identity; cross-link with [[slug]] wikilinks.
-- Structured fields are bold-label lines in the body, e.g. \`**Population:** 14000000\`. The schema
-  declares each field's type (integer/number/date/enum/string); typed values become queryable
-  columns — query them with \`grove query run\`.
+- Structured fields are bold-label lines in the body, e.g. \`**Population:** 14000000\`. Put each
+  field on its own physical Markdown line; never combine multiple \`**Field:**\` labels on one
+  rendered line. The schema declares each field's type (integer/number/date/enum/string); typed
+  values become queryable columns — query them with \`grove query run\`.
 - Files with \`_status: review\` in frontmatter are unverified drafts; promote them when checked.
 
 How to work:
-- Drive everything through the \`grove\` CLI below (already on PATH, pointed at this space). Prefer it
-  over editing files by hand — it keeps projections, links and the git history consistent.
-- Quick mutations (records create/promote/remove, meta put, ingest) commit in place and respin.
-- For a polished multi-file change, use the worktree transaction: \`grove change begin\` →
-  write files into the returned worktree path → \`grove change commit --id <id>\`. It builds in the
-  worktree as a gate and only merges to main if it builds and merges cleanly.
+- Read through the \`grove\` CLI below (already on PATH, pointed at this space), then edit files
+  normally when a direct filesystem edit is the cleanest way to make the change.
+- Batch related edits and commit once. A normal \`git commit\` is the canonical boundary: Grove's
+  hooks synthesize generated README files during the commit and respin derived \`db/*\` afterward.
+- Use \`grove commit run --message <...>\` as a convenience wrapper when you want Grove to stage and
+  commit pending file edits for you. Do not run \`grove build run\` to publish changes; build is only
+  a repair/dev operation for regenerating derived projections.
+- For an isolated multi-file change, use the worktree transaction: \`grove change begin\` →
+  write files into the returned worktree path → \`grove change commit --id <id>\`. It creates a real
+  git commit with the same Grove commit hooks, then only merges to main if validation succeeds.
 - Read before you write: \`grove collections tree\`, \`grove records list/read\`, \`grove query run\`,
   \`grove search run\`, \`grove links of\`.
 - Make structure when needed: \`grove collections create --name <x> [--parent <c>] [--entry form|editor]\`
@@ -38,7 +43,9 @@ const POSTAMBLE = `\nTips: most verbs print JSON. Pass --space <dir> to target a
 /** Render the command surface straight from the registry, so it tracks the real CLI. */
 export function buildSystemPrompt(ops: OpTree): string {
   const lines: string[] = []
+  const hidden = new Set(['build', 'hooks'])
   for (const [ns, verbs] of Object.entries(ops)) {
+    if (hidden.has(ns)) continue
     for (const [verb, desc] of Object.entries(verbs)) {
       const shape = (desc.input as { shape?: Record<string, unknown> }).shape ?? {}
       const opts = Object.keys(shape)

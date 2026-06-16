@@ -74,4 +74,9 @@ describe('read engine', () => {
     expect(d.manifest.templates).toContain('city.md')
     expect(d.recordCount).toBe(3)
   })
+
+  it('does not treat generated README files as records', () => {
+    const c = { ...corpus, 'notes/README.md': '# Notes\n\n| generated | table |\n' }
+    expect(recordRows(c, 'notes').map((r) => r.slug)).not.toContain('notes/README')
+  })
 })

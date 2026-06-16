@@ -15,8 +15,8 @@
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium",
     "dev": "pnpm --parallel --filter @grove/server --filter @grove/app dev",
-    "serve": "tsx packages/server/src/index.ts",
-    "grove": "tsx packages/cli/src/cli.ts",
+    "serve": "node --import tsx packages/server/src/index.ts",
+    "grove": "node --import tsx packages/cli/src/cli.ts",
     "build": "pnpm -r --if-present build",
     "check": "tsc --noEmit -p tsconfig.json && biome check . && vitest run --passWithNoTests"
   },

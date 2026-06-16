@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "gen": "tsx ../../scripts/gen-corpus.ts",
-    "predev": "tsx ../../scripts/gen-corpus.ts",
+    "gen": "node --import tsx ../../scripts/gen-corpus.ts",
+    "predev": "node --import tsx ../../scripts/gen-corpus.ts",
     "dev": "vite",
-    "prebuild": "tsx ../../scripts/gen-corpus.ts",
+    "prebuild": "node --import tsx ../../scripts/gen-corpus.ts",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json"

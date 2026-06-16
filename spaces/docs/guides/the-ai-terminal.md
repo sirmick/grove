@@ -21,6 +21,6 @@ Choose the backend with `--codex` or `--claude`; bare `ai` uses the default.
 ## How it's meant to be used
 
 Interactively — no print-mode end-runs. The AI reads the prompts, then you work with it in the
-loop: it reads with `query`/`read`/`tree`, writes with `records create` or a
-[[guides/the-commit-cycle|change transaction]], and its edits go live through the respin cycle like
-any other author.
+loop: it reads with `query`/`read`/`tree`, edits files directly or through helper commands, then
+commits once. The commit hook handles generated README files and the respin, just as it does for any
+other author.

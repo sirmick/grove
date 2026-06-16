@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type Row, runQuery } from '@grove/core'
   import type { Snippet } from 'svelte'
+  import Icon from '../icons/Icon.svelte'
 
   // A query box + sortable table over plain typed rows. The same pure engine the CLI uses.
   let {
@@ -30,7 +31,8 @@
   function toggleSort(col: string) {
     sort = sort === col ? `-${col}` : sort === `-${col}` ? '' : col
   }
-  const mark = (col: string) => (sort === col ? ' ▲' : sort === `-${col}` ? ' ▼' : '')
+  const sortIcon = (col: string) =>
+    sort === col ? 'chevron-up' : sort === `-${col}` ? 'chevron-down' : 'chevrons-up-down'
 </script>
 
 <div class="qbar">
@@ -41,30 +43,40 @@
 </div>
 
 {#if result.rows.length}
-  <table class="grid data">
-    <thead>
-      <tr>
-        {#each columns as col (col.key)}
-          <th class:num={col.numeric}>
-            <button class="colh" onclick={() => toggleSort(col.key)}>{col.label ?? col.key}{mark(col.key)}</button>
-          </th>
-        {/each}
-      </tr>
-    </thead>
-    <tbody>
-      {#each result.rows as r, i (r.slug ?? i)}
+  <div class="tableframe">
+    <table class="grid data">
+      <thead>
         <tr>
-          {#each columns as col, ci (col.key)}
-            {#if ci === 0 && lead}
-              <td>{@render lead(r)}</td>
-            {:else}
-              <td class:num={col.numeric ?? typeof r[col.key] === 'number'}>{r[col.key] ?? ''}</td>
-            {/if}
+          {#each columns as col (col.key)}
+            <th class:num={col.numeric}>
+              <button
+                class="colh"
+                class:sorted={sort === col.key || sort === `-${col.key}`}
+                onclick={() => toggleSort(col.key)}
+                aria-label={`Sort by ${col.label ?? col.key}`}
+              >
+                <span>{col.label ?? col.key}</span>
+                <Icon name={sortIcon(col.key)} size={13} />
+              </button>
+            </th>
           {/each}
         </tr>
-      {/each}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {#each result.rows as r, i (r.slug ?? i)}
+          <tr>
+            {#each columns as col, ci (col.key)}
+              {#if ci === 0 && lead}
+                <td>{@render lead(r)}</td>
+              {:else}
+                <td class:num={col.numeric ?? typeof r[col.key] === 'number'}>{r[col.key] ?? ''}</td>
+              {/if}
+            {/each}
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
 {:else if !result.error}
   <p class="muted">No matching records.</p>
 {/if}
@@ -74,7 +86,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .qbox {
     flex: 1;
@@ -89,6 +101,7 @@
   }
   table.data {
     width: 100%;
+    min-width: max-content;
   }
   table.data td.num,
   table.data th.num {
@@ -96,14 +109,30 @@
     font-variant-numeric: tabular-nums;
   }
   .colh {
-    background: none;
+    align-items: center;
+    background: transparent;
     border: 0;
     color: inherit;
+    display: inline-flex;
+    gap: 5px;
+    justify-content: space-between;
     font: inherit;
     cursor: pointer;
     padding: 0;
+    width: 100%;
+  }
+  table.data th.num .colh {
+    justify-content: flex-end;
   }
   .colh:hover {
-    text-decoration: underline;
+    color: var(--text);
+  }
+  .colh :global(svg) {
+    color: var(--muted);
+    opacity: 0.55;
+  }
+  .colh.sorted :global(svg) {
+    color: var(--accent);
+    opacity: 1;
   }
 </style>

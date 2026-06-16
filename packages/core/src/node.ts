@@ -3,6 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -12,11 +13,13 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import chokidar from 'chokidar'
 import type { Corpus } from './corpus'
 import { buildProjections } from './project'
 import { spaceWarnings } from './read'
+import { renderReadmeFiles } from './render'
 import type { DbMeta, LogEntry, RespinRecord } from './types'
 
 export function loadCorpusFromDir(dir: string): Corpus {
@@ -31,14 +34,58 @@ export function loadCorpusFromDir(dir: string): Corpus {
   return corpus
 }
 
-function git(args: string[], cwd: string): string {
+function spawnOutput(e: unknown): string | null {
+  const err = e as { status?: number; stdout?: Buffer | string; output?: unknown[] }
+  if (err.status !== 0) return null
+  const out = err.stdout ?? err.output?.[1]
+  if (Buffer.isBuffer(out)) return out.toString('utf8')
+  return typeof out === 'string' ? out : null
+}
+
+function gitOutput(args: string[], cwd: string): string {
   // Discard stderr: failures are expected on probes (rev-parse/check-ignore outside a repo) and are
   // handled via catch + fallbacks; we don't want git's "fatal: …" leaking to the CLI/terminal.
-  return execFileSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  }).trim()
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+  } catch (e) {
+    const out = spawnOutput(e)
+    if (out !== null) return out
+    throw e
+  }
+}
+
+function git(args: string[], cwd: string): string {
+  return gitOutput(args, cwd).trim()
+}
+
+function gitRaw(args: string[], cwd: string): string {
+  return gitOutput(args, cwd)
+}
+
+function repoTop(dir: string): string | null {
+  try {
+    return git(['rev-parse', '--show-toplevel'], dir)
+  } catch {
+    return null
+  }
+}
+
+function gitPath(dir: string, path: string): string {
+  const out = git(['rev-parse', '--git-path', path], dir)
+  return isAbsolute(out) ? out : join(dir, out)
+}
+
+function hasHeadCommit(dir: string): boolean {
+  try {
+    git(['rev-parse', '--verify', 'HEAD'], dir)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isInsideWorkTree(dir: string): boolean {
@@ -121,16 +168,246 @@ function gitLog(spaceDir: string, n: number): LogEntry[] {
     const prefix = relative(top, spaceDir).split(sep).join('/')
     const args = ['log', `-n${n}`, '--pretty=format:%x01%H%x00%cI%x00%s', '--name-status']
     if (prefix) args.push('--', '.') // in-repo space → only its commits, not the whole project's
-    const out = execFileSync('git', args, { cwd: spaceDir, encoding: 'utf8' })
+    const out = gitRaw(args, spaceDir)
     return parseLog(out, prefix)
   } catch {
     return []
   }
 }
 
+function parseStatus(out: string, prefix: string): LogEntry['changed'] {
+  const changed: LogEntry['changed'] = []
+  for (const line of out.split('\n')) {
+    if (!line) continue
+    const status = line.slice(0, 2).trim() || line.slice(0, 2)
+    let p = line.slice(3)
+    const rename = p.lastIndexOf(' -> ')
+    if (rename >= 0) p = p.slice(rename + 4)
+    if (prefix && p.startsWith(`${prefix}/`)) p = p.slice(prefix.length + 1)
+    if (p.startsWith('db/')) continue
+    changed.push({ status, path: p })
+  }
+  return changed
+}
+
+function gitStatus(spaceDir: string): LogEntry['changed'] {
+  try {
+    return parseStatus(git(['status', '--porcelain', '--', '.'], spaceDir), spacePrefix(spaceDir))
+  } catch {
+    return []
+  }
+}
+
+const HOOK_BEGIN = '# BEGIN grove-managed hook'
+const HOOK_END = '# END grove-managed hook'
+const GROVE_BIN = fileURLToPath(new URL('../../../bin/grove', import.meta.url))
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, "'\\''")}'`
+}
+
+function upsertHook(repoDir: string, name: string, body: string) {
+  const file = gitPath(repoDir, `hooks/${name}`)
+  mkdirSync(dirname(file), { recursive: true })
+  const block = `${HOOK_BEGIN}\n${body.trimEnd()}\n${HOOK_END}\n`
+  let next: string
+  if (existsSync(file)) {
+    const current = readFileSync(file, 'utf8')
+    const begin = current.indexOf(HOOK_BEGIN)
+    const end = current.indexOf(HOOK_END)
+    if (begin >= 0 && end >= begin) {
+      next = `${current.slice(0, begin)}${block}${current.slice(end + HOOK_END.length).replace(/^\n/, '')}`
+    } else {
+      next = `${current.trimEnd()}\n\n${block}`
+    }
+  } else {
+    next = `#!/usr/bin/env bash\nset -euo pipefail\n\n${block}`
+  }
+  writeFileSync(file, next)
+  chmodSync(file, 0o755)
+}
+
+export function installGitHooks(dir: string): { repo: string; hooks: string[] } {
+  const repo = repoTop(dir)
+  if (!repo) throw new Error(`not inside a git repository: ${dir}`)
+  const grove = shellQuote(process.env.GROVE_BIN ?? GROVE_BIN)
+  const postCommit = `repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$repo"
+unset $(git rev-parse --local-env-vars)
+${grove} hooks post-commit >/dev/null`
+  upsertHook(repo, 'post-commit', postCommit)
+  return { repo, hooks: ['post-commit'] }
+}
+
+export interface GitHooksStatus {
+  repo: string | null
+  installed: boolean
+  missing: string[]
+  error?: string
+}
+
+export function gitHooksStatus(dir: string): GitHooksStatus {
+  const repo = repoTop(dir)
+  if (!repo) {
+    return {
+      repo: null,
+      installed: false,
+      missing: ['post-commit'],
+      error: `not inside a git repository: ${dir}`,
+    }
+  }
+  const missing: string[] = []
+  try {
+    const hook = readFileSync(gitPath(repo, 'hooks/post-commit'), 'utf8')
+    if (!hook.includes(HOOK_BEGIN) || !hook.includes('hooks post-commit')) {
+      missing.push('post-commit')
+    }
+  } catch {
+    missing.push('post-commit')
+  }
+  return { repo, installed: missing.length === 0, missing }
+}
+
+function splitZ(out: string): string[] {
+  return out.split('\0').filter(Boolean)
+}
+
+function stagedPaths(repoDir: string): string[] {
+  try {
+    return splitZ(gitRaw(['diff', '--cached', '--name-only', '-z'], repoDir))
+  } catch {
+    return []
+  }
+}
+
+function lastCommitPaths(repoDir: string): string[] {
+  try {
+    return splitZ(
+      gitRaw(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD'], repoDir),
+    )
+  } catch {
+    return []
+  }
+}
+
+function spaceRootForPath(repoDir: string, rel: string): string | null {
+  const parts = rel.split('/').filter(Boolean)
+  const candidates: string[] = []
+  for (let i = 0; i <= parts.length; i++) {
+    const dir = resolve(repoDir, ...parts.slice(0, i))
+    if (existsSync(join(dir, '_grove'))) candidates.push(dir)
+  }
+  return (
+    candidates.find((dir) => existsSync(join(dir, '_grove/prompt.md'))) ?? candidates[0] ?? null
+  )
+}
+
+function affectedSpaceRoots(repoDir: string, paths: string[]): string[] {
+  const roots = new Set<string>()
+  for (const p of paths) {
+    const root = spaceRootForPath(repoDir, p)
+    if (root) roots.add(root)
+  }
+  return [...roots].sort()
+}
+
+function commitSubject(messageFile: string): string {
+  try {
+    const raw = readFileSync(messageFile, 'utf8')
+    const first = raw
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .find((line) => line.trim() && !line.trimStart().startsWith('#'))
+    return first ?? raw.trim() ?? 'grove: update'
+  } catch {
+    return 'grove: update'
+  }
+}
+
 function writeJson(file: string, data: unknown) {
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, JSON.stringify(data, null, 2))
+}
+
+function writeTextAtomic(file: string, content: string) {
+  mkdirSync(dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  writeFileSync(tmp, content)
+  renameSync(tmp, file)
+}
+
+export interface PrepareCommitOptions {
+  currentChanged?: LogEntry['changed']
+  history?: LogEntry[]
+}
+
+export function prepareCommit(
+  spaceDir: string,
+  message: string,
+  options: PrepareCommitOptions = {},
+): string[] {
+  const savedAt = new Date().toISOString()
+  const corpus = loadCorpusFromDir(spaceDir)
+  const files = renderReadmeFiles(corpus, {
+    savedAt,
+    current: {
+      commit: 'current',
+      at: savedAt,
+      message,
+      changed: options.currentChanged ?? gitStatus(spaceDir),
+    },
+    history: options.history ?? gitLog(spaceDir, 9),
+  })
+  for (const [rel, content] of Object.entries(files)) writeTextAtomic(join(spaceDir, rel), content)
+  const rels = Object.keys(files)
+  if (rels.length) git(['add', '--', ...rels], spaceDir)
+  return rels
+}
+
+export function prepareCommitForRepo(repoDir: string, messageFile: string): { spaces: string[] } {
+  const repo = repoTop(repoDir) ?? repoDir
+  const message = commitSubject(messageFile)
+  const roots = affectedSpaceRoots(repo, stagedPaths(repo))
+  for (const root of roots) prepareCommit(root, message)
+  return { spaces: roots.map((root) => relative(repo, root) || '.') }
+}
+
+export function postCommitForRepo(repoDir: string): { spaces: string[] } {
+  const repo = repoTop(repoDir) ?? repoDir
+  const roots = affectedSpaceRoots(repo, lastCommitPaths(repo))
+  const generated: string[] = []
+  for (const root of roots) {
+    const [current, ...history] = gitLog(root, 10)
+    const relRoot = relative(repo, root).split(sep).join('/')
+    const prepared = prepareCommit(root, current?.message ?? 'grove: update', {
+      currentChanged: current?.changed ?? [],
+      history: history.slice(0, 9),
+    })
+    generated.push(...prepared.map((rel) => (relRoot ? `${relRoot}/${rel}` : rel)))
+  }
+  const staged = new Set(stagedPaths(repo))
+  const amendPaths = generated.filter((p) => staged.has(p))
+  if (amendPaths.length) {
+    const noHooks = join(tmpdir(), 'grove-no-hooks')
+    mkdirSync(noHooks, { recursive: true })
+    git(
+      [
+        '-c',
+        `core.hooksPath=${noHooks}`,
+        ...GIT_ID,
+        'commit',
+        '--amend',
+        '--no-edit',
+        '-q',
+        '--only',
+        '--',
+        ...amendPaths,
+      ],
+      repo,
+    )
+  }
+  for (const root of roots) buildSpace(root)
+  return { spaces: roots.map((root) => relative(repo, root) || '.') }
 }
 
 function appendRespin(db: string, r: RespinRecord) {
@@ -194,13 +471,14 @@ const GIT_ID = ['-c', 'user.email=grove@local', '-c', 'user.name=grove']
 /** Make the space its own git repo on first use (gitignoring derived db/). Idempotent.
  *  No-op when the space is managed by an enclosing repo (we don't nest a repo inside one). */
 export function ensureGitRepo(dir: string) {
-  if (existsSync(join(dir, '.git'))) return
-  if (managedByEnclosing(dir)) return
+  if (existsSync(join(dir, '.git')) || managedByEnclosing(dir)) {
+    installGitHooks(dir)
+    return
+  }
   try {
     git(['init', '-q'], dir)
+    installGitHooks(dir)
     writeFileSync(join(dir, '.gitignore'), 'db/\n*.tmp\n')
-    git(['add', '-A'], dir)
-    git([...GIT_ID, 'commit', '-q', '-m', 'grove: init space', '--allow-empty'], dir)
   } catch {
     // git unavailable; commits will no-op and headCommit falls back to 'dev'
   }
@@ -243,10 +521,14 @@ export interface CommitResult {
 /** Take out a change: a fresh worktree on a new branch off the current HEAD. */
 export function beginChange(spaceDir: string): Change {
   ensureGitRepo(spaceDir)
+  if (!managedByEnclosing(spaceDir) && !hasHeadCommit(spaceDir)) {
+    gitCommitAll(spaceDir, 'grove: init space')
+  }
   const id = randomUUID().slice(0, 8)
   const wt = worktreePath(id)
   mkdirSync(dirname(wt), { recursive: true })
   git(['worktree', 'add', '--quiet', '-b', `change/${id}`, wt, 'HEAD'], spaceDir)
+  installGitHooks(wt)
   return { id, worktree: wt, base: headCommit(spaceDir) }
 }
 
@@ -272,13 +554,38 @@ function removeWorktree(spaceDir: string, id: string) {
   }
 }
 
-/** Commit a change: commit in the worktree, BUILD there (gate), then merge → respin → cleanup. */
+/** Commit a change: prepare generated files, commit in the worktree, BUILD there, merge, respin. */
 export function commitChange(spaceDir: string, id: string, message: string): CommitResult {
   const wt = worktreePath(id)
   const branch = `change/${id}`
   try {
+    try {
+      prepareCommit(wt, message)
+    } catch (e) {
+      removeWorktree(spaceDir, id)
+      return { ok: false, error: `build failed: ${(e as Error).message}` }
+    }
     git(['add', '-A'], wt)
-    git([...GIT_ID, 'commit', '-q', '-m', message, '--allow-empty'], wt)
+    try {
+      const noHooks = join(tmpdir(), 'grove-no-hooks')
+      mkdirSync(noHooks, { recursive: true })
+      git(
+        [
+          '-c',
+          `core.hooksPath=${noHooks}`,
+          ...GIT_ID,
+          'commit',
+          '-q',
+          '-m',
+          message,
+          '--allow-empty',
+        ],
+        wt,
+      )
+    } catch (e) {
+      removeWorktree(spaceDir, id)
+      return { ok: false, error: `build failed: ${(e as Error).message}` }
+    }
 
     // Validate-before-merge: a structural error (e.g. bad schema.yaml) fails here, main untouched.
     try {

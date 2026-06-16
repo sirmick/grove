@@ -2,7 +2,16 @@
 import type { Ctx, OpTree, ProgressEvent } from '@grove/core'
 import type { Command } from 'commander'
 
-export function toCli(program: Command, ops: OpTree, getCtx: () => Ctx): void {
+export interface ToCliOptions {
+  beforeRun?: (namespace: string, verb: string, ctx: Ctx) => void
+}
+
+export function toCli(
+  program: Command,
+  ops: OpTree,
+  getCtx: () => Ctx,
+  options: ToCliOptions = {},
+): void {
   for (const [ns, verbs] of Object.entries(ops)) {
     const nsCmd = program.command(ns)
     for (const [verb, desc] of Object.entries(verbs)) {
@@ -12,7 +21,9 @@ export function toCli(program: Command, ops: OpTree, getCtx: () => Ctx): void {
       cmd.action(async (opts: Record<string, unknown>) => {
         try {
           const input = desc.input.parse(opts)
-          const result = await desc.handler(input, getCtx())
+          const ctx = getCtx()
+          options.beforeRun?.(ns, verb, ctx)
+          const result = await desc.handler(input, ctx)
           const iter = (result as { [Symbol.asyncIterator]?: unknown } | null)?.[
             Symbol.asyncIterator
           ]

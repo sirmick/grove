@@ -1,12 +1,20 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { commitChangeset, gitCommitAll, headCommit } from '../src/node'
+import { commitChangeset, gitCommitAll, gitHooksStatus, headCommit } from '../src/node'
 
 const demo = new URL('../../../spaces/demo', import.meta.url).pathname
 
 let space: string
+
+function plainGit(cwd: string, args: string[]) {
+  execFileSync('git', ['-c', 'user.email=plain@local', '-c', 'user.name=plain', ...args], {
+    cwd,
+    stdio: 'ignore',
+  })
+}
 
 beforeEach(() => {
   // Fresh git-backed copy of demo (sans db/.git) per test, so transactions are isolated.
@@ -16,6 +24,7 @@ beforeEach(() => {
     filter: (s) => !/[/\\](db|\.git)([/\\]|$)/.test(s),
   })
   gitCommitAll(space, 'grove: init test space') // git init + a real baseline commit
+  expect(gitHooksStatus(space).installed).toBe(true)
 })
 
 afterEach(() => {
@@ -36,6 +45,11 @@ describe('change transaction (mechanism a)', () => {
     expect(res.headCommit).toBe(headCommit(space))
     expect(existsSync(join(space, 'notes/from-change.md'))).toBe(true)
     expect(readFileSync(join(space, 'notes/from-change.md'), 'utf8')).toContain('From Change')
+    expect(readFileSync(join(space, 'README.md'), 'utf8')).toContain('## Recent Changes')
+    expect(readFileSync(join(space, 'README.md'), 'utf8')).toContain('grove: add note')
+    expect(readFileSync(join(space, 'notes/README.md'), 'utf8')).toContain(
+      '[From Change](from-change.md)',
+    )
   })
 
   it('validate-before-merge: a broken build is rejected and main is untouched', () => {
@@ -54,6 +68,44 @@ describe('change transaction (mechanism a)', () => {
       'unterminated',
     )
   })
+
+  it('plain git commit synthesizes README files and respins', () => {
+    writeFileSync(
+      join(space, '_grove/overview.md'),
+      '# Direct Overview\n\nThis came through plain git.\n',
+    )
+    plainGit(space, ['add', '_grove/overview.md'])
+    plainGit(space, ['commit', '-m', 'direct overview update'])
+
+    const readme = readFileSync(join(space, 'README.md'), 'utf8')
+    expect(readme).toContain('# Direct Overview')
+    expect(readme).toContain('direct overview update')
+    const meta = JSON.parse(readFileSync(join(space, 'db/meta.json'), 'utf8')) as {
+      headCommit: string
+    }
+    expect(meta.headCommit).toBe(headCommit(space))
+  })
+
+  it('initializes a standalone space before its first changeset transaction', () => {
+    const fresh = mkdtempSync(join(tmpdir(), 'grove-fresh-'))
+    try {
+      cpSync(demo, fresh, {
+        recursive: true,
+        filter: (s) => !/[/\\](db|\.git)([/\\]|$)/.test(s),
+      })
+      const res = commitChangeset(
+        fresh,
+        { 'notes/first.md': '# First\n\n**Tags:** x\n\nhello\n' },
+        'first transaction',
+      )
+
+      expect(res.ok).toBe(true)
+      expect(headCommit(fresh)).not.toBe('dev')
+      expect(readFileSync(join(fresh, 'notes/README.md'), 'utf8')).toContain('[First](first.md)')
+    } finally {
+      rmSync(fresh, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('managed in-repo space', () => {
@@ -66,6 +118,7 @@ describe('managed in-repo space', () => {
     sub = join(repo, 'content')
     cpSync(demo, sub, { recursive: true, filter: (s) => !/[/\\](db|\.git)([/\\]|$)/.test(s) })
     gitCommitAll(repo, 'init enclosing repo') // inits the enclosing repo, tracks content/
+    expect(gitHooksStatus(sub).installed).toBe(true)
   })
 
   afterEach(() => {
@@ -82,7 +135,20 @@ describe('managed in-repo space', () => {
     expect(res.ok).toBe(true)
     expect(existsSync(join(sub, '.git'))).toBe(false) // never nested a repo inside the space
     expect(existsSync(join(sub, 'notes/managed.md'))).toBe(true)
+    expect(readFileSync(join(sub, 'notes/README.md'), 'utf8')).toContain('[Managed](managed.md)')
     expect(res.headCommit).not.toBe(before)
     expect(headCommit(sub)).toBe(res.headCommit) // headCommit scoped to the subpath
+  })
+
+  it('plain git commit in the enclosing repo prepares the affected space', () => {
+    writeFileSync(
+      join(sub, '_grove/overview.md'),
+      '# Managed Overview\n\nThis came through plain git in the parent repo.\n',
+    )
+    plainGit(repo, ['add', 'content/_grove/overview.md'])
+    plainGit(repo, ['commit', '-m', 'managed overview update'])
+
+    expect(readFileSync(join(sub, 'README.md'), 'utf8')).toContain('# Managed Overview')
+    expect(readFileSync(join(sub, 'db/meta.json'), 'utf8')).toContain(headCommit(sub))
   })
 })

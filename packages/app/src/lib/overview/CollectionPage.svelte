@@ -47,21 +47,23 @@
 
   <section>
     <h3>Schema <span class="muted">· entry: {detail.schema.entry}{detail.schema.extends ? ` · extends: ${detail.schema.extends}` : ''}</span></h3>
-    <table class="grid">
-      <thead><tr><th>field</th><th>type</th><th>values / default</th></tr></thead>
-      <tbody>
-        {#each fields as [name, hint]}
-          <tr>
-            <td><code>{name}</code></td>
-            <td>{hint.type}</td>
-            <td class="muted">
-              {hint.values ? hint.values.join(' | ') : ''}
-              {hint.default !== undefined ? `default: ${hint.default}` : ''}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="tableframe">
+      <table class="grid">
+        <thead><tr><th>field</th><th>type</th><th>values / default</th></tr></thead>
+        <tbody>
+          {#each fields as [name, hint]}
+            <tr>
+              <td><code>{name}</code></td>
+              <td>{hint.type}</td>
+              <td class="muted">
+                {hint.values ? hint.values.join(' | ') : ''}
+                {hint.default !== undefined ? `default: ${hint.default}` : ''}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section>
