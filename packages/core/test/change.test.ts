@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -84,6 +92,32 @@ describe('change transaction (mechanism a)', () => {
       headCommit: string
     }
     expect(meta.headCommit).toBe(headCommit(space))
+  })
+
+  it('grove commits still work when .git/hooks is not writable', () => {
+    const hooks = join(space, '.git/hooks')
+    rmSync(join(hooks, 'post-commit'), { force: true })
+    chmodSync(hooks, 0o555)
+
+    try {
+      const before = headCommit(space)
+      writeFileSync(join(space, 'notes/protected-hooks.md'), '# Protected Hooks\n\n**Tags:** x\n')
+      const after = gitCommitAll(space, 'add note with protected hooks')
+
+      expect(after).not.toBe(before)
+      expect(readFileSync(join(space, 'README.md'), 'utf8')).toContain(
+        'add note with protected hooks',
+      )
+      expect(readFileSync(join(space, 'notes/README.md'), 'utf8')).toContain(
+        '[Protected Hooks](protected-hooks.md)',
+      )
+      const meta = JSON.parse(readFileSync(join(space, 'db/meta.json'), 'utf8')) as {
+        headCommit: string
+      }
+      expect(meta.headCommit).toBe(after)
+    } finally {
+      chmodSync(hooks, 0o755)
+    }
   })
 
   it('initializes a standalone space before its first changeset transaction', () => {

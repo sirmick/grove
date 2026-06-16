@@ -28,7 +28,9 @@ branch commit instead, so the build gate validates the generated files before me
 
 The result is `{ ok, headCommit }` or `{ ok: false, conflicts | error }`. The server maps a failure
 to `409`; the app keeps your drafts so you can fix and retry. `commitChangeset` is the one-shot
-helper (begin → write all → commit) the app and `/commit` use.
+helper (begin → write all → commit) the app and `/commit` use. Simpler Grove write helpers commit in
+place and run the generated README/respin path directly; hook installation is only required for
+plain Git commits made outside Grove.
 
 This is the "polished change" path; see [[guides/the-commit-cycle]] and
 [[concepts/drafts-respins-and-the-log]].

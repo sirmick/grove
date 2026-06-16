@@ -29,9 +29,10 @@ In the [[guides/the-ai-terminal|terminal]] `grove` is already on PATH and pointe
 
 Read verbs (`tree`, `list`, `read`, `query`, `search`, `links`, `schema`) never change anything.
 Some write helpers commit in place when they represent a sensible single change. For larger edits,
-change files normally and make one `git commit`; grove's hook generates README files and triggers the
-[[concepts/drafts-respins-and-the-log|respin]]. See [[guides/the-commit-cycle]]. The full command
-list lives in **reference** (queryable).
+change files normally and make one `git commit`; grove's hook generates README files and triggers
+the [[concepts/drafts-respins-and-the-log|respin]] for plain Git commits. Grove write helpers run
+that render/respin path directly. See [[guides/the-commit-cycle]]. The full command list lives in
+**reference** (queryable).
 
 The CLI is generated from the [[internals/ops-registry|ops registry]], so it never drifts from the
 JS API.

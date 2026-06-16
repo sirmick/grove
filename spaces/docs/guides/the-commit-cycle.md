@@ -37,6 +37,10 @@ grove records create --collection notes --title "Idea"
 grove records promote --slug papers/some-draft
 ```
 
+Those Grove helpers prepare generated `README.md` files and respin `db/*` directly, so a protected
+`.git/hooks` directory does not block them. The hook is still what makes plain `git commit` behave
+the same way.
+
 For a polished multi-file change, drive the same transaction explicitly:
 
 ```

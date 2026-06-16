@@ -31,6 +31,9 @@ Or use the helper scripts: **`./build.sh`** (install + build) and **`./dev.sh`**
 network-exposed instance (app on `0.0.0.0:13000`, server on `:13001`); open
 `http://<host-ip>:13000`. Both honor the env vars below (e.g. `VITE_PORT=8080 ./dev.sh`).
 
+For a single-process debug stack, run **`./run.sh`**. It mounts the Vite app inside the grove server
+so app, API, SSE, and PTY all share `GROVE_PORT` (default `13000`).
+
 Useful env vars:
 
 | Var | Meaning |
@@ -38,8 +41,8 @@ Useful env vars:
 | `GROVE_SPACES_ROOTS` | path-list of selectable space roots (default `./spaces` plus `~/spaces`) |
 | `GROVE_DEFAULT_SPACE` | which space to open first |
 | `GROVE_SPACE` | force **single-space** mode at this path (used by e2e) |
-| `VITE_PORT` / `GROVE_PORT` | app / server ports (default `5180` / `5179`) |
-| `VITE_HOST` | set to `0.0.0.0` to expose on the network |
+| `VITE_PORT` / `GROVE_PORT` | split dev app / server ports (default `5180` / `5179`); `run.sh` uses `GROVE_PORT` for the merged server |
+| `VITE_HOST` / `GROVE_HOST` | set to `0.0.0.0` to expose on the network |
 
 ## CLI
 
@@ -74,6 +77,7 @@ Jump in:
 
 ```bash
 pnpm dev      # app + server (against ./spaces and ~/spaces)
+./run.sh      # one-port debug stack
 pnpm build    # build the app
 pnpm check    # typecheck + biome + unit tests
 pnpm test     # unit tests (vitest)

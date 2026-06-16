@@ -239,6 +239,16 @@ ${grove} hooks post-commit >/dev/null`
   return { repo, hooks: ['post-commit'] }
 }
 
+function installGitHooksBestEffort(dir: string) {
+  try {
+    installGitHooks(dir)
+  } catch {
+    // Hook installation is an integration convenience for plain `git commit`, not a prerequisite
+    // for Grove's own write paths. Sandboxes may keep .git/hooks read-only while allowing normal
+    // worktree edits and commits.
+  }
+}
+
 export interface GitHooksStatus {
   repo: string | null
   installed: boolean
@@ -472,12 +482,12 @@ const GIT_ID = ['-c', 'user.email=grove@local', '-c', 'user.name=grove']
  *  No-op when the space is managed by an enclosing repo (we don't nest a repo inside one). */
 export function ensureGitRepo(dir: string) {
   if (existsSync(join(dir, '.git')) || managedByEnclosing(dir)) {
-    installGitHooks(dir)
+    installGitHooksBestEffort(dir)
     return
   }
   try {
     git(['init', '-q'], dir)
-    installGitHooks(dir)
+    installGitHooksBestEffort(dir)
     writeFileSync(join(dir, '.gitignore'), 'db/\n*.tmp\n')
   } catch {
     // git unavailable; commits will no-op and headCommit falls back to 'dev'
@@ -487,14 +497,45 @@ export function ensureGitRepo(dir: string) {
 /** Stage + commit all pending changes in the space; returns the new HEAD. */
 export function gitCommitAll(dir: string, message: string): string {
   ensureGitRepo(dir)
+  const isSpace = existsSync(join(dir, '_grove'))
+  if (isSpace) {
+    try {
+      prepareCommit(dir, message)
+    } catch {
+      // Keep the old "commit what we can" behavior for direct helpers. The build-gated transaction
+      // path still treats preparation/build failures as errors before merging.
+    }
+  }
   // For an in-repo space, scope add/commit to its subpath so it never sweeps up unrelated changes
   // elsewhere in the enclosing repo.
   const scope = managedByEnclosing(dir) ? ['--', '.'] : []
   try {
+    const noHooks = join(tmpdir(), 'grove-no-hooks')
+    mkdirSync(noHooks, { recursive: true })
     git(['add', '-A', ...scope], dir)
-    git([...GIT_ID, 'commit', '-q', '-m', message, '--allow-empty', ...scope], dir)
+    git(
+      [
+        '-c',
+        `core.hooksPath=${noHooks}`,
+        ...GIT_ID,
+        'commit',
+        '-q',
+        '-m',
+        message,
+        '--allow-empty',
+        ...scope,
+      ],
+      dir,
+    )
   } catch {
     // nothing to commit / git error
+  }
+  if (isSpace) {
+    try {
+      buildSpace(dir)
+    } catch {
+      // post-commit hooks cannot reject an already-created commit either; keep this helper lenient.
+    }
   }
   return headCommit(dir)
 }
@@ -528,7 +569,7 @@ export function beginChange(spaceDir: string): Change {
   const wt = worktreePath(id)
   mkdirSync(dirname(wt), { recursive: true })
   git(['worktree', 'add', '--quiet', '-b', `change/${id}`, wt, 'HEAD'], spaceDir)
-  installGitHooks(wt)
+  installGitHooksBestEffort(wt)
   return { id, worktree: wt, base: headCommit(spaceDir) }
 }
 

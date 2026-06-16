@@ -24,11 +24,13 @@ How to work:
 - Batch related edits and commit once. A normal \`git commit\` is the canonical boundary: Grove's
   hooks synthesize generated README files during the commit and respin derived \`db/*\` afterward.
 - Use \`grove commit run --message <...>\` as a convenience wrapper when you want Grove to stage and
-  commit pending file edits for you. Do not run \`grove build run\` to publish changes; build is only
-  a repair/dev operation for regenerating derived projections.
+  commit pending file edits for you; Grove prepares generated README files and respins directly for
+  its own write commands. Do not run \`grove build run\` to publish changes; build is only a
+  repair/dev operation for regenerating derived projections.
 - For an isolated multi-file change, use the worktree transaction: \`grove change begin\` →
   write files into the returned worktree path → \`grove change commit --id <id>\`. It creates a real
-  git commit with the same Grove commit hooks, then only merges to main if validation succeeds.
+  git commit with the same Grove renderer/respin path, then only merges to main if validation
+  succeeds.
 - Read before you write: \`grove collections tree\`, \`grove records list/read\`, \`grove query run\`,
   \`grove search run\`, \`grove links of\`.
 - Make structure when needed: \`grove collections create --name <x> [--parent <c>] [--entry form|editor]\`

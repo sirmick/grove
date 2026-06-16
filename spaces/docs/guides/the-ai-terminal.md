@@ -9,7 +9,9 @@ any [[guides/using-the-cli|grove command]] immediately, or hand the space to an 
 
 Type `ai` to launch an AI assistant interactively, seeded with two prompts:
 
-Choose the backend with `--codex` or `--claude`; bare `ai` uses the default.
+Choose the backend with `--codex` or `--claude`; bare `ai` uses the default. Add `--yolo` only when
+you want the selected backend's unsafe permission-bypass mode (`codex --yolo`, or
+`claude --dangerously-skip-permissions`).
 
 - **System prompt** — how grove works and its full command surface, **generated from the
   [[internals/ops-registry|ops registry]]** so it never drifts from the real CLI.

@@ -28,5 +28,6 @@ Both guard paths to the space dir and to `.md`/`.yaml` only.
 - `WS /pty` — an interactive terminal via `node-pty`, opened **in the space** with `grove`/`ai` on
   PATH ([[guides/the-ai-terminal]]).
 
-In dev, Vite serves the app and proxies all of the above to the server (same-origin, no CORS). In
-production these collapse into one server (planned: Hono also serves the built app).
+In normal dev, Vite serves the app and proxies all of the above to the server (same-origin, no
+CORS). In debug mode (`./run.sh` or `GROVE_DEBUG=1`), the grove server mounts Vite as middleware so
+the app, API, SSE feed, and PTY websocket share one port. Production static serving is still planned.

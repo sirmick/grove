@@ -11,10 +11,11 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import type { IncomingMessage, Server } from 'node:http'
+import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
+import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { basename, delimiter, dirname, join, resolve, sep } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { DbMeta } from '@grove/core'
 import {
   buildSpace,
@@ -23,7 +24,7 @@ import {
   loadCorpusFromDir,
   watchSpace,
 } from '@grove/core/node'
-import { serve } from '@hono/node-server'
+import { getRequestListener } from '@hono/node-server'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { spawn as ptySpawn } from 'node-pty'
@@ -31,7 +32,14 @@ import { type WebSocket, WebSocketServer } from 'ws'
 
 // Repo root, independent of cwd (pnpm --filter runs us inside packages/server).
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+const APP_ROOT = join(ROOT, 'packages/app')
 const PORT = Number(process.env.GROVE_PORT ?? 5179)
+const HOST = process.env.GROVE_HOST
+const DEBUG_APP =
+  process.env.GROVE_DEBUG === '1' ||
+  process.env.GROVE_DEBUG === 'true' ||
+  process.env.GROVE_DEBUG_APP === '1' ||
+  process.env.GROVE_DEBUG_APP === 'true'
 
 // Single-space mode when GROVE_SPACE is set (e2e); otherwise one or more roots where each subdir
 // with a _grove/ is a selectable space. GROVE_SPACES_ROOTS is a path-list override.
@@ -250,17 +258,83 @@ app.get('/events', (c) => {
   })
 })
 
-const server = serve({ fetch: app.fetch, port: PORT }) as unknown as Server
-process.stdout.write(
-  `grove server on :${PORT} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOTS.join(', ') || '(none)'}`}, default ${defaultSpace()})\n`,
-)
+const GROVE_ROUTES = new Set([
+  '/commit',
+  '/corpus.json',
+  '/events',
+  '/exec',
+  '/screenshot',
+  '/spaces',
+])
+const GROVE_PREFIXES = ['/db/', '/incoming/']
+
+function isGroveHttpRoute(url: string | undefined): boolean {
+  const path = new URL(url ?? '/', 'http://localhost').pathname
+  return GROVE_ROUTES.has(path) || GROVE_PREFIXES.some((prefix) => path.startsWith(prefix))
+}
+
+interface ViteServer {
+  middlewares: (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
+  close(): Promise<void>
+}
+
+async function createViteMiddlewareServer(server: Server): Promise<ViteServer | undefined> {
+  if (!DEBUG_APP) return undefined
+  const appRequire = createRequire(join(APP_ROOT, 'package.json'))
+  const viteEntry = appRequire.resolve('vite')
+  const viteModule = (await import(pathToFileURL(viteEntry).href)) as {
+    createServer(config: Record<string, unknown>): Promise<ViteServer>
+  }
+  return viteModule.createServer({
+    configFile: join(APP_ROOT, 'vite.config.ts'),
+    root: APP_ROOT,
+    appType: 'spa',
+    server: {
+      middlewareMode: { server },
+      hmr: { server },
+    },
+  })
+}
+
+const honoRequest = getRequestListener(app.fetch)
+const server = createServer()
+const vite = await createViteMiddlewareServer(server)
+
+server.on('request', (req, res) => {
+  if (!vite || isGroveHttpRoute(req.url)) {
+    void honoRequest(req, res)
+    return
+  }
+  vite.middlewares(req, res, (err?: unknown) => {
+    if (err) {
+      res.statusCode = 500
+      res.end(err instanceof Error ? err.stack || err.message : String(err))
+      return
+    }
+    void honoRequest(req, res)
+  })
+})
+
+server.listen(PORT, HOST, () => {
+  const appUrl = `http://${HOST && HOST !== '0.0.0.0' ? HOST : 'localhost'}:${PORT}`
+  process.stdout.write(
+    `grove ${DEBUG_APP ? 'debug stack' : 'server'} on ${appUrl} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOTS.join(', ') || '(none)'}`}, default ${defaultSpace()})\n`,
+  )
+})
+
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(sig, () => {
+    const code = sig === 'SIGINT' ? 130 : 143
+    void Promise.resolve(vite?.close()).finally(() => process.exit(code))
+  })
+}
 
 // Dev tier — interactive PTY over WebSocket (xterm in the browser). Local only.
 const wss = new WebSocketServer({ noServer: true })
 server.on('upgrade', (req, socket, head) => {
   if ((req.url ?? '').startsWith('/pty')) {
     wss.handleUpgrade(req, socket, head, (ws) => attachPty(ws, req))
-  } else {
+  } else if (!vite) {
     socket.destroy()
   }
 })

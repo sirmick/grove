@@ -5,15 +5,20 @@ set -euo pipefail
 
 usage() {
   cat <<\USAGE
-Usage: ai [--codex|--claude] [provider args...]
+Usage: ai [--codex|--claude] [--yolo] [provider args...]
 
 Launch an AI assistant interactively, seeded with grove + project context.
 Defaults to --codex.
+
+--yolo maps to the provider's unsafe permission-bypass mode:
+  codex  -> --yolo
+  claude -> --dangerously-skip-permissions
 USAGE
 }
 
 provider="codex"
 provider_flag=""
+yolo=0
 args=()
 
 while (($#)); do
@@ -25,6 +30,10 @@ while (($#)); do
       fi
       provider="${1#--}"
       provider_flag="$1"
+      shift
+      ;;
+    --yolo)
+      yolo=1
       shift
       ;;
     -h|--help)
@@ -51,6 +60,7 @@ case "$provider" in
       echo "codex CLI not found on PATH. Install Codex CLI, then run ai again." >&2
       exit 127
     fi
+    if ((yolo)); then args=(--yolo "${args[@]}"); fi
     exec codex "${args[@]}" "$prompt"
     ;;
   claude)
@@ -58,6 +68,7 @@ case "$provider" in
       echo "claude CLI not found on PATH. Install Claude Code, then run ai --claude again." >&2
       exit 127
     fi
+    if ((yolo)); then args=(--dangerously-skip-permissions "${args[@]}"); fi
     exec claude --append-system-prompt "$prompt" "${args[@]}"
     ;;
 esac

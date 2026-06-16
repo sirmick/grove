@@ -15,6 +15,9 @@ pnpm install
 pnpm dev          # Vite app + the grove server, against spaces/demo
 ```
 
+For a one-port debug stack, use `./run.sh`; it serves the Vite app, API, SSE, and terminal websocket
+from the same grove server.
+
 Open the app. To point at a different space, set `GROVE_SPACE`:
 
 ```
