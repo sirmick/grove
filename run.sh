@@ -3,6 +3,10 @@
 #
 # Open http://localhost:13000 (or http://<this-host-ip>:13000 when GROVE_HOST=0.0.0.0).
 # Override env vars before this script to change ports, host, or spaces.
+#
+# Auth: binding 0.0.0.0 exposes /exec + /pty (command execution), so off-box access requires the
+# ?token=<t> URL printed at startup (press Enter at the console to reprint it). Local use needs no
+# token. Set GROVE_TOKEN to pin the token; GROVE_NO_AUTH=1 to disable auth entirely.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
