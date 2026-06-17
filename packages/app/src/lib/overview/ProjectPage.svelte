@@ -1,5 +1,6 @@
 <script lang="ts">
   import MetaEditor from '../editor/MetaEditor.svelte'
+  import { diagrams } from '../diagrams'
   import { grove } from '../grove/client'
   import { renderMarkdown } from '../md'
   import { openLog } from '../state.svelte'
@@ -17,7 +18,7 @@
 <article class="page">
   <h1>Project</h1>
   {#if overview}
-    <div class="overview">{@html renderMarkdown(overview)}</div>
+    <div class="overview" use:diagrams={overview}>{@html renderMarkdown(overview)}</div>
   {:else}
     <p class="muted">The space root. Project-wide schema bases, templates, prompts and rules live here.</p>
   {/if}

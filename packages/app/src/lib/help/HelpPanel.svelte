@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type TreeNode, buildTree, parseFrontmatter, proseOf, titleOf } from '@grove/core'
   import { helpCorpus } from '../../generated/help'
+  import { diagrams } from '../diagrams'
   import { renderMarkdown } from '../md'
 
   // Read-only docs viewer over the bundled help space (spaces/docs). No client/server/space deps —
@@ -40,7 +41,7 @@
       <button class="leaf" class:active={selected === ''} onclick={() => (selected = '')}>Overview</button>
       {@render branch(tree, 0)}
     </nav>
-    <article class="hdoc">
+    <article class="hdoc" use:diagrams={selected}>
       {#if doc}
         <h1>{doc.title}</h1>
         {@html doc.html}

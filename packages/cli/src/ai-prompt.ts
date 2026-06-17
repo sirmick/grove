@@ -16,6 +16,10 @@ How a grove is shaped:
   field on its own physical Markdown line; never combine multiple \`**Field:**\` labels on one
   rendered line. The schema declares each field's type (integer/number/date/enum/string); typed
   values become queryable columns — query them with \`grove query run\`.
+- Diagrams & images: a fenced \`\`\`mermaid or \`\`\`dot (Graphviz) code block in a body renders as an
+  inline diagram in the app — prefer these (they version as plain text) for flow/sequence/class/
+  state diagrams and graphs. For images, embed a URL or data-URI — \`![alt](https://… | data:image/…)\`
+  — since local image files inside a space are not served.
 - Files with \`_status: review\` in frontmatter are unverified drafts; promote them when checked.
 
 How to work:

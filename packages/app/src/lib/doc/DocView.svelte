@@ -2,6 +2,7 @@
   import { composeMarkdown, dirOf, proseOf } from '@grove/core'
   import { hasDraft, setDraft } from '../db/drafts.svelte'
   import { commitAll, currentHead } from '../db/sync.svelte'
+  import { diagrams } from '../diagrams'
   import { grove } from '../grove/client'
   import Icon from '../icons/Icon.svelte'
   import { renderMarkdown } from '../md'
@@ -57,7 +58,7 @@
       </dl>
     {/if}
 
-    <div class="body">{@html renderMarkdown(proseOf(rec.body))}</div>
+    <div class="body" use:diagrams={rec.body}>{@html renderMarkdown(proseOf(rec.body))}</div>
 
     <section class="links">
       <h3><Icon name="link" size={15} /> Links</h3>

@@ -297,6 +297,25 @@ body {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+/* Rendered ```dot / ```mermaid diagrams (see md.ts + diagrams.ts). */
+.diagram {
+  margin: 14px 0;
+  overflow-x: auto;
+}
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+.diagram-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: #ff8a8a;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 .body a {
   color: var(--accent-2);
 }

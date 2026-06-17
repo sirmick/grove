@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Row } from '@grove/core'
   import DataTable from '../data/DataTable.svelte'
+  import { diagrams } from '../diagrams'
   import MetaEditor from '../editor/MetaEditor.svelte'
   import { grove } from '../grove/client'
   import { renderMarkdown } from '../md'
@@ -45,7 +46,7 @@
 </script>
 
 <article class="page">
-  <div class="overview">{@html renderMarkdown(detail.overview)}</div>
+  <div class="overview" use:diagrams={detail.overview}>{@html renderMarkdown(detail.overview)}</div>
 
   <section>
     <h3>Schema <span class="muted">· entry: {detail.schema.entry}{detail.schema.extends ? ` · extends: ${detail.schema.extends}` : ''}</span></h3>
