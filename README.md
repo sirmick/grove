@@ -71,7 +71,6 @@ Jump in:
 - **Concepts** ([`spaces/docs/concepts`](spaces/docs/concepts)) — [the model](spaces/docs/concepts/the-model.md) · [slugs & wikilinks](spaces/docs/concepts/slugs-and-wikilinks.md) · [schemas & extraction](spaces/docs/concepts/schemas-and-extraction.md) · [drafts, respins & the log](spaces/docs/concepts/drafts-respins-and-the-log.md) · [the five faces](spaces/docs/concepts/the-five-faces.md)
 - **Internals** ([`spaces/docs/internals`](spaces/docs/internals)) — [architecture](spaces/docs/internals/architecture.md) · [core engine](spaces/docs/internals/core-engine.md) · [ops registry](spaces/docs/internals/ops-registry.md) · [server tiers](spaces/docs/internals/three-tiers-server.md) · [worktree transactions](spaces/docs/internals/worktree-transactions.md) · [projections & db](spaces/docs/internals/projections-and-db.md) · [query engine](spaces/docs/internals/query-engine.md) · [frontend](spaces/docs/internals/frontend.md)
 - **Reference** ([`spaces/docs/reference`](spaces/docs/reference)) — one record per `grove` command.
-- The original design note lives in [`SPEC.md`](SPEC.md).
 
 ## Scripts
 
