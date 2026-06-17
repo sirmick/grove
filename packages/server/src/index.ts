@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 // grove server — read tier (static db/ + corpus + SSE change-feed), author tier (git commit /
 // worktree transaction) and dev tier (exec + pty), with a watcher per space. Multiple spaces are
 // selectable per request via the `grove_space` cookie; GROVE_SPACE forces single-space mode (e2e).
@@ -13,7 +14,7 @@ import {
 } from 'node:fs'
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
 import { createRequire } from 'node:module'
-import { homedir } from 'node:os'
+import { homedir, networkInterfaces } from 'node:os'
 import { basename, delimiter, dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { DbMeta } from '@grove/core'
@@ -35,6 +36,55 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const APP_ROOT = join(ROOT, 'packages/app')
 const PORT = Number(process.env.GROVE_PORT ?? 5179)
 const HOST = process.env.GROVE_HOST
+
+// ── Access token ──────────────────────────────────────────────────────────────────────────────
+// The dev tier exposes /exec + /pty (arbitrary command execution), so a server reachable off-box
+// MUST gate access. Loopback callers are trusted (they already have the machine); everyone else
+// needs the token — via ?token=<t> (which then sets a cookie), the grove_token cookie, or a Bearer
+// header. Set GROVE_TOKEN to pin a value; GROVE_NO_AUTH=1 disables the check entirely.
+const AUTH = process.env.GROVE_NO_AUTH !== '1'
+const TOKEN = process.env.GROVE_TOKEN || randomBytes(16).toString('hex')
+
+function isLoopback(req: IncomingMessage): boolean {
+  const a = req.socket.remoteAddress ?? ''
+  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1'
+}
+function tokenEq(given: string): boolean {
+  const a = Buffer.from(given)
+  const b = Buffer.from(TOKEN)
+  return a.length === b.length && timingSafeEqual(a, b) // constant-time, length-guarded
+}
+function presentedToken(req: IncomingMessage): string | undefined {
+  const q = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token')
+  if (q) return q
+  const auth = req.headers.authorization
+  if (auth?.startsWith('Bearer ')) return auth.slice(7)
+  return /(?:^|;\s*)grove_token=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]
+}
+function authorized(req: IncomingMessage): boolean {
+  if (!AUTH) return true
+  if (isLoopback(req)) return true
+  const t = presentedToken(req)
+  return !!t && tokenEq(t)
+}
+
+// Clickable access URLs (with the token, for off-box use). localhost + each LAN IPv4 when exposed.
+function accessUrls(): string[] {
+  const q = AUTH ? `/?token=${TOKEN}` : ''
+  const exposed = !HOST || HOST === '0.0.0.0' || HOST === '::'
+  if (!exposed) return [`http://${HOST}:${PORT}${q}`]
+  const urls = [`http://localhost:${PORT}${q}`]
+  for (const ifaces of Object.values(networkInterfaces())) {
+    for (const i of ifaces ?? []) {
+      if (i.family === 'IPv4' && !i.internal) urls.push(`http://${i.address}:${PORT}${q}`)
+    }
+  }
+  return urls
+}
+function printAccess(prefix: string) {
+  process.stdout.write(prefix)
+  for (const u of accessUrls()) process.stdout.write(`  ${u}\n`)
+}
 const DEBUG_APP =
   process.env.GROVE_DEBUG === '1' ||
   process.env.GROVE_DEBUG === 'true' ||
@@ -301,6 +351,26 @@ const server = createServer()
 const vite = await createViteMiddlewareServer(server)
 
 server.on('request', (req, res) => {
+  if (!authorized(req)) {
+    res.statusCode = 401
+    res.setHeader('content-type', 'text/plain')
+    res.end('grove: unauthorized — open with ?token=<token> from the server console.\n')
+    return
+  }
+  // Bootstrap: a valid ?token sets the grove_token cookie and redirects to a clean URL, so the
+  // token isn't left in the address bar / history and later requests authenticate via the cookie.
+  if (AUTH && !isLoopback(req)) {
+    const u = new URL(req.url ?? '/', 'http://localhost')
+    const q = u.searchParams.get('token')
+    if (q && tokenEq(q)) {
+      u.searchParams.delete('token')
+      res.statusCode = 302
+      res.setHeader('Set-Cookie', `grove_token=${TOKEN}; Path=/; SameSite=Lax; HttpOnly`)
+      res.setHeader('Location', `${u.pathname}${u.search}${u.hash}` || '/')
+      res.end()
+      return
+    }
+  }
   if (!vite || isGroveHttpRoute(req.url)) {
     void honoRequest(req, res)
     return
@@ -320,6 +390,18 @@ server.listen(PORT, HOST, () => {
   process.stdout.write(
     `grove ${DEBUG_APP ? 'debug stack' : 'server'} on ${appUrl} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOTS.join(', ') || '(none)'}`}, default ${defaultSpace()})\n`,
   )
+  if (AUTH) {
+    printAccess('access (token required off-box) — open:\n')
+    process.stdout.write('press Enter to reprint the access URL · GROVE_NO_AUTH=1 to disable\n')
+    // Reprint the token URL whenever the operator hits Enter at the server console.
+    if (process.stdin.isTTY) {
+      process.stdin.on('data', () => printAccess('access — open:\n'))
+    }
+  } else {
+    process.stdout.write(
+      'auth disabled (GROVE_NO_AUTH=1) — anyone who can reach this host has full access\n',
+    )
+  }
 })
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
@@ -332,6 +414,11 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
 // Dev tier — interactive PTY over WebSocket (xterm in the browser). Local only.
 const wss = new WebSocketServer({ noServer: true })
 server.on('upgrade', (req, socket, head) => {
+  if (!authorized(req)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+    socket.destroy()
+    return
+  }
   if ((req.url ?? '').startsWith('/pty')) {
     wss.handleUpgrade(req, socket, head, (ws) => attachPty(ws, req))
   } else if (!vite) {
