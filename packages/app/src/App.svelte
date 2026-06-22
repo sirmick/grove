@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { authState } from './lib/auth.svelte'
   import Chrome from './lib/Chrome.svelte'
   import DocView from './lib/doc/DocView.svelte'
   import RecordEditor from './lib/editor/RecordEditor.svelte'
@@ -46,6 +47,13 @@
 </script>
 
 <div class="app" style="--tree-w:{ui.treeW}px; --term-h:{ui.termH}px">
+  {#if authState.unauthorized}
+    <div class="authbar" role="alert">
+      Not authenticated — the terminal and live sync are disabled; you're viewing bundled content
+      only. Reopen grove with the <code>?token=…</code> URL the server prints (press Enter at its
+      console to reprint), or run with <code>GROVE_NO_AUTH=1</code>.
+    </div>
+  {/if}
   <div class="main">
     {#if ui.treeOpen}
       <div class="left">
@@ -100,6 +108,21 @@
 {#if helpOpen}<HelpPanel onclose={() => (helpOpen = false)} />{/if}
 
 <style>
+  .authbar {
+    flex: none;
+    padding: 6px 12px;
+    background: #5a1d1d;
+    color: #ffd9d9;
+    border-bottom: 1px solid #7a2a2a;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .authbar code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(255, 255, 255, 0.12);
+    padding: 0 4px;
+    border-radius: 3px;
+  }
   .main {
     display: flex;
     flex: 1;

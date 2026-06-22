@@ -1,6 +1,7 @@
 // The live loop: SSE/poll triggers → reconcile against the meta journal; commit → git-worktree
 // transaction (server) → respin → reload. Merge conflicts are detected by git in the worktree
 // (validate-before-merge); on conflict the server keeps main untouched and we keep the drafts.
+import { noteAuth } from '../auth.svelte'
 import { grove } from '../grove/client'
 import { loadCorpus } from '../grove/corpusState.svelte'
 import { closeByRef, tabsState } from '../state.svelte'
@@ -29,6 +30,7 @@ interface MetaLite {
 async function fetchMeta(): Promise<MetaLite | null> {
   try {
     const r = await fetch('/db/meta.json', { cache: 'no-store' })
+    noteAuth(r)
     return r.ok ? ((await r.json()) as MetaLite) : null
   } catch {
     return null
