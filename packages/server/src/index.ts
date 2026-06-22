@@ -54,18 +54,20 @@ function tokenEq(given: string): boolean {
   const b = Buffer.from(TOKEN)
   return a.length === b.length && timingSafeEqual(a, b) // constant-time, length-guarded
 }
-function presentedToken(req: IncomingMessage): string | undefined {
+function presentedTokens(req: IncomingMessage): string[] {
+  const tokens: string[] = []
   const q = new URL(req.url ?? '/', 'http://localhost').searchParams.get('token')
-  if (q) return q
+  if (q) tokens.push(q)
   const auth = req.headers.authorization
-  if (auth?.startsWith('Bearer ')) return auth.slice(7)
-  return /(?:^|;\s*)grove_token=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]
+  if (auth?.startsWith('Bearer ')) tokens.push(auth.slice(7))
+  const cookie = /(?:^|;\s*)grove_token=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]
+  if (cookie) tokens.push(cookie)
+  return tokens
 }
 function authorized(req: IncomingMessage): boolean {
   if (!AUTH) return true
   if (isLoopback(req)) return true
-  const t = presentedToken(req)
-  return !!t && tokenEq(t)
+  return presentedTokens(req).some((t) => tokenEq(t))
 }
 
 // Clickable access URLs (with the token, for off-box use). localhost + each LAN IPv4 when exposed.
@@ -413,7 +415,9 @@ for (const sig of ['SIGINT', 'SIGTERM'] as const) {
 
 // Dev tier — interactive PTY over WebSocket (xterm in the browser). Local only.
 const wss = new WebSocketServer({ noServer: true })
-server.on('upgrade', (req, socket, head) => {
+// Run before Vite's HMR upgrade listener. Vite also uses a `?token=` query parameter for HMR, so
+// Grove auth must validate all presented credentials before any listener writes to the socket.
+server.prependListener('upgrade', (req, socket, head) => {
   if (!authorized(req)) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
     socket.destroy()
