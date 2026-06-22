@@ -297,6 +297,12 @@ body {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.field dd :is(p, ul, ol) {
+  margin: 0;
+}
+.field dd a {
+  color: var(--accent-2);
+}
 /* Rendered ```dot / ```mermaid diagrams (see md.ts + diagrams.ts). */
 .diagram {
   margin: 14px 0;

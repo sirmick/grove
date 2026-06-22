@@ -53,7 +53,7 @@
     {#if fields.length}
       <dl class="fields">
         {#each fields as [k, v]}
-          <div class="field"><dt>{k}</dt><dd>{String(v)}</dd></div>
+          <div class="field"><dt>{k}</dt><dd>{@html renderMarkdown(String(v))}</dd></div>
         {/each}
       </dl>
     {/if}
