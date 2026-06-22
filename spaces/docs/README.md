@@ -17,13 +17,14 @@ same draft → commit → respin cycle as any other space.
 
 ## Last Save
 
-2026-06-16T23:08:05.932Z
+2026-06-22T19:50:13.963Z
 
 ## Recent Changes
 
 | Saved | Commit | Message | Changes |
 | --- | --- | --- | --- |
-| 2026-06-16T23:08:05.932Z | current save | improve grove debug and commit flows | M guides/getting-started.md<br>M guides/the-ai-terminal.md<br>M guides/the-commit-cycle.md<br>M guides/using-the-cli.md<br>M internals/three-tiers-server.md<br>M internals/worktree-transactions.md |
+| 2026-06-22T19:50:13.963Z | current save | Read AI launch config from spaces | M guides/the-ai-terminal.md |
+| 2026-06-16T16:08:05-07:00 | 6eaa1c48 | improve grove debug and commit flows | M README.md<br>M guides/getting-started.md<br>M guides/the-ai-terminal.md<br>M guides/the-commit-cycle.md<br>M guides/using-the-cli.md<br>M internals/three-tiers-server.md<br>+1 more |
 | 2026-06-16T09:19:39-07:00 | dc119632 | unify grove commit lifecycle | A README.md<br>M _grove/prompt.md<br>A concepts/README.md<br>M concepts/drafts-respins-and-the-log.md<br>A guides/README.md<br>M guides/the-ai-terminal.md<br>+6 more |
 | 2026-06-15T14:47:13-07:00 | c0c3c2b2 | Add selectable AI launcher and external space roots | M guides/the-ai-terminal.md<br>M internals/three-tiers-server.md<br>M reference/ai-prompt.md |
 | 2026-06-15T07:30:37-07:00 | ba406461 | Add 'spaces/docs/' from commit '24a3bfff9df1e4aa8e09e2fd12961a5a81ab323d' |  |
