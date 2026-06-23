@@ -33,6 +33,7 @@
 
     function scheduleReconnect() {
       if (closed || reconnectTimer || connectedOrConnecting()) return
+      if (document.hidden) return
       reconnectTimer = setTimeout(() => {
         reconnectTimer = undefined
         connect()
@@ -47,16 +48,30 @@
       socket.binaryType = 'arraybuffer'
       socket.onmessage = (e) => {
         if (ws !== socket) return
-        term.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data as ArrayBuffer))
+        if (typeof e.data !== 'string') {
+          term.write(new Uint8Array(e.data as ArrayBuffer))
+          return
+        }
+        const kind = e.data[0]
+        const data = e.data.slice(1)
+        if (kind === 's') {
+          term.reset()
+          if (data) term.write(data, () => term.scrollToBottom())
+        } else if (kind === 'o') {
+          term.write(data)
+        } else {
+          term.write(e.data)
+        }
       }
       socket.onopen = () => {
         if (ws !== socket) return
         reconnectDelay = 500
         send(resize())
       }
-      socket.onclose = () => {
+      socket.onclose = (e) => {
         if (ws !== socket) return
         ws = undefined
+        if (e.code === 4000) return
         scheduleReconnect()
       }
       socket.onerror = () => socket.close()
@@ -72,7 +87,7 @@
     ro.observe(host)
 
     const reconnectIfNeeded = () => {
-      if (!connectedOrConnecting()) scheduleReconnect()
+      if (!document.hidden && !connectedOrConnecting()) scheduleReconnect()
     }
     window.addEventListener('online', reconnectIfNeeded)
     window.addEventListener('pageshow', reconnectIfNeeded)
@@ -91,12 +106,13 @@
   })
 
   function terminalSessionId(): string {
-    const existing = localStorage.getItem(SESSION_KEY)
+    const storage = sessionStorage
+    const existing = storage.getItem(SESSION_KEY)
     if (existing) return existing
     const id =
       globalThis.crypto?.randomUUID?.() ??
       `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-    localStorage.setItem(SESSION_KEY, id)
+    storage.setItem(SESSION_KEY, id)
     return id
   }
 </script>

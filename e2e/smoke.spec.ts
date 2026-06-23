@@ -87,10 +87,7 @@ test('live update: server write → SSE reconcile → tree shows new node', asyn
   await expect(page.getByText('E2E Live').first()).toBeVisible({ timeout: 15000 })
 })
 
-test('dev tier: terminal renders + exec channel runs grove → live reconcile', async ({
-  page,
-  request,
-}) => {
+test('dev tier: terminal renders + exec channel runs grove', async ({ page, request }) => {
   await page.goto('/')
   await expect(page.locator('.xterm')).toBeVisible() // xterm mounted in the bottom pane
 
@@ -98,8 +95,47 @@ test('dev tier: terminal renders + exec channel runs grove → live reconcile', 
     data: { args: ['records', 'create', '--collection', 'notes', '--title', 'Termexec'] },
   })
   expect(res.ok()).toBeTruthy()
+  const out = (await res.json()) as { code: number; stderr: string }
+  expect(out.code, out.stderr).toBe(0)
 
+  await expect
+    .poll(
+      async () =>
+        ((await (await request.get(`${SERVER}/corpus.json`)).json()) as Record<string, string>)[
+          'notes/termexec.md'
+        ],
+      { timeout: 15000 },
+    )
+    .toContain('# Termexec')
+  await page.reload()
   await expect(page.getByText('Termexec').first()).toBeVisible({ timeout: 20000 })
+})
+
+test('dev tier: terminal reconnect does not duplicate replay or fight tabs', async ({
+  context,
+  page,
+}) => {
+  await page.goto('/')
+  const term = page.locator('.xterm')
+  await expect(term).toContainText('grove terminal')
+
+  await context.setOffline(true)
+  await context.setOffline(false)
+  await term.click()
+  await page.keyboard.type("printf 'AFTER-RECONNECT\\n'\r")
+  await expect(term).toContainText('AFTER-RECONNECT')
+
+  const text = await term.innerText()
+  expect((text.match(/grove terminal/g) ?? []).length).toBe(1)
+
+  const page2 = await context.newPage()
+  await page2.goto('/')
+  await expect(page2.locator('.xterm')).toContainText('grove terminal')
+  const sid1 = await page.evaluate(() => sessionStorage.getItem('grove:terminal-session:v1'))
+  const sid2 = await page2.evaluate(() => sessionStorage.getItem('grove:terminal-session:v1'))
+  expect(sid1).toBeTruthy()
+  expect(sid2).toBeTruthy()
+  expect(sid1).not.toBe(sid2)
 })
 
 test('dev tier: spaces create scaffolds a new space', async ({ request }) => {
