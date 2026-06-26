@@ -10,8 +10,13 @@ Usage: ai [--codex|--claude] [--yolo] [provider args...]
 Launch an AI assistant interactively, seeded with grove + project context.
 Defaults to --codex.
 
+If present, _grove/ai.json in the current space provides provider defaults
+such as Codex sandbox mode, approval policy, working root, and extra writable
+directories. Explicit provider args passed to this command come after config
+args, so they can override the space defaults.
+
 --yolo maps to the provider's unsafe permission-bypass mode:
-  codex  -> --yolo
+  codex  -> --dangerously-bypass-approvals-and-sandbox
   claude -> --dangerously-skip-permissions
 USAGE
 }
@@ -52,6 +57,84 @@ while (($#)); do
   esac
 done
 
+space="${GROVE_SPACE:-$PWD}"
+config_file="${GROVE_AI_CONFIG:-$space/_grove/ai.json}"
+config_args=()
+
+if [[ -f "$config_file" ]]; then
+  config_output="$(
+    AI_PROVIDER="$provider" AI_CONFIG="$config_file" AI_SPACE="$space" node <<'NODE'
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
+
+const provider = process.env.AI_PROVIDER
+const configPath = process.env.AI_CONFIG
+const space = process.env.AI_SPACE || process.cwd()
+
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  } catch (error) {
+    console.error(`ai: failed to read ${configPath}: ${error.message}`)
+    process.exit(2)
+  }
+}
+
+function objectOrEmpty(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+function resolvePath(value) {
+  if (typeof value !== 'string' || value.length === 0) return undefined
+  if (value === '$GROVE_SPACE') return space
+  if (value.startsWith('$GROVE_SPACE/')) return path.join(space, value.slice('$GROVE_SPACE/'.length))
+  if (value === '~') return os.homedir()
+  if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2))
+  if (path.isAbsolute(value)) return value
+  return path.resolve(space, value)
+}
+
+const raw = readConfig()
+const config = objectOrEmpty(raw)
+const common = objectOrEmpty(config.common)
+const providerConfig = objectOrEmpty(config[provider])
+const merged = { ...config, ...common, ...providerConfig }
+delete merged.common
+delete merged.codex
+delete merged.claude
+
+const args = []
+
+if (provider === 'codex') {
+  const cd = resolvePath(merged.cd ?? merged.cwd ?? '.')
+  if (cd) args.push('-C', cd)
+  if (merged.sandbox) args.push('--sandbox', String(merged.sandbox))
+  const approvalPolicy = merged.approvalPolicy ?? merged.askForApproval
+  if (approvalPolicy) args.push('--ask-for-approval', String(approvalPolicy))
+  const extraDirs = [
+    ...(Array.isArray(merged.addDirs) ? merged.addDirs : []),
+    ...(Array.isArray(merged.trustedDirs) ? merged.trustedDirs : []),
+    ...(Array.isArray(merged.writableDirs) ? merged.writableDirs : []),
+  ]
+  for (const dir of extraDirs) {
+    const resolved = resolvePath(dir)
+    if (resolved) args.push('--add-dir', resolved)
+  }
+}
+
+if (Array.isArray(merged.args)) {
+  for (const arg of merged.args) args.push(String(arg))
+}
+
+process.stdout.write(args.join('\n'))
+NODE
+  )" || exit 2
+  if [[ -n "$config_output" ]]; then
+    mapfile -t config_args <<<"$config_output"
+  fi
+fi
+
 prompt="$(grove ai prompt)"
 
 case "$provider" in
@@ -60,8 +143,8 @@ case "$provider" in
       echo "codex CLI not found on PATH. Install Codex CLI, then run ai again." >&2
       exit 127
     fi
-    if ((yolo)); then args=(--yolo "${args[@]}"); fi
-    exec codex "${args[@]}" "$prompt"
+    if ((yolo)); then args=(--dangerously-bypass-approvals-and-sandbox "${args[@]}"); fi
+    exec codex "${config_args[@]}" "${args[@]}" "$prompt"
     ;;
   claude)
     if ! command -v claude >/dev/null 2>&1; then
@@ -69,6 +152,6 @@ case "$provider" in
       exit 127
     fi
     if ((yolo)); then args=(--dangerously-skip-permissions "${args[@]}"); fi
-    exec claude --append-system-prompt "$prompt" "${args[@]}"
+    exec claude --append-system-prompt "$prompt" "${config_args[@]}" "${args[@]}"
     ;;
 esac

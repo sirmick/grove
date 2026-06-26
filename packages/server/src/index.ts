@@ -723,7 +723,7 @@ function sendToSession(session: PtySession, data: string) {
       continue
     }
     try {
-      client.send(data)
+      client.send(`o${data}`)
     } catch {
       session.clients.delete(client)
       client.terminate()
@@ -788,7 +788,7 @@ function attachPty(ws: WebSocket, req: IncomingMessage) {
   session.clients.clear()
   session.clients.add(ws)
   if (session.idleTimer) clearTimeout(session.idleTimer)
-  if (session.scrollback) ws.send(session.scrollback)
+  ws.send(`s${session.scrollback}`)
 
   let alive = true
   const heartbeat = setInterval(() => {

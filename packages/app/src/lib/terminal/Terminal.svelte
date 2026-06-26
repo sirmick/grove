@@ -116,6 +116,7 @@
 
     function scheduleReconnect() {
       if (closed || reconnectTimer || connectedOrConnecting()) return
+      if (document.hidden) return // don't churn reconnects while the tab is backgrounded
       reconnectTimer = setTimeout(() => {
         reconnectTimer = undefined
         connect()
@@ -130,16 +131,32 @@
       socket.binaryType = 'arraybuffer'
       socket.onmessage = (e) => {
         if (ws !== socket) return
-        t.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data as ArrayBuffer))
+        // Server frames: 's<scrollback>' is a snapshot (reset + replay on (re)connect), 'o<data>'
+        // is live output. Binary or an unprefixed string is written verbatim (legacy/defensive).
+        if (typeof e.data !== 'string') {
+          t.write(new Uint8Array(e.data as ArrayBuffer))
+          return
+        }
+        const kind = e.data[0]
+        const data = e.data.slice(1)
+        if (kind === 's') {
+          t.reset()
+          if (data) t.write(data, () => t.scrollToBottom())
+        } else if (kind === 'o') {
+          t.write(data)
+        } else {
+          t.write(e.data)
+        }
       }
       socket.onopen = () => {
         if (ws !== socket) return
         reconnectDelay = 500
         send(resize())
       }
-      socket.onclose = () => {
+      socket.onclose = (e) => {
         if (ws !== socket) return
         ws = undefined
+        if (e.code === 4000 || e.code === 4001) return // replaced by a new client / tab closed
         scheduleReconnect()
       }
       socket.onerror = () => socket.close()
@@ -171,7 +188,7 @@
     window.addEventListener('click', closeMenu)
 
     const reconnectIfNeeded = () => {
-      if (!connectedOrConnecting()) scheduleReconnect()
+      if (!document.hidden && !connectedOrConnecting()) scheduleReconnect()
     }
     window.addEventListener('online', reconnectIfNeeded)
     window.addEventListener('pageshow', reconnectIfNeeded)
