@@ -1,15 +1,22 @@
 <script lang="ts">
+  import BinTree from '../bin/BinTree.svelte'
   import { grove } from '../grove/client'
   import Icon from '../icons/Icon.svelte'
   import { activeTab, openLog, openProject } from '../state.svelte'
   import TreeNodeItem from './TreeNodeItem.svelte'
+  import { clearSelection, dnd } from './treeDnd.svelte'
 
   const tree = $derived(grove.collections.tree())
   let projOpen = $state(true)
   const isActive = (kind: string) => activeTab()?.kind === kind
 </script>
 
-<nav class="tree">
+{#if dnd.error}<div class="dnd-msg" role="alert">{dnd.error}</div>{/if}
+
+<!-- A bare click on the nav background (not on a row) clears the multi-select. -->
+<nav class="tree" onclickcapture={(e) => { if (!(e.target as HTMLElement).closest('.row')) clearSelection() }}>
+  <!-- bin: raw OS files, pinned above the semantic collection tree. -->
+  <BinTree />
   <ul>
     <!-- Space root, as a sibling above the collections: project-level meta + the respin log. -->
     <li>
@@ -43,6 +50,15 @@
 </nav>
 
 <style>
+  .dnd-msg {
+    margin: 4px 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #ffd9d9;
+    background: #5a1d1d;
+    border: 1px solid #7a2a2a;
+    border-radius: 5px;
+  }
   .prow {
     display: flex;
     align-items: center;

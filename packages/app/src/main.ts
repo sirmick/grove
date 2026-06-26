@@ -6,7 +6,9 @@ import { startSync } from './lib/db/sync.svelte'
 import { grove } from './lib/grove/client'
 import { loadCorpus } from './lib/grove/corpusState.svelte'
 import { bootSpace } from './lib/space.svelte'
-import { openCollection } from './lib/state.svelte'
+import { loadTabs, openCollection } from './lib/state.svelte'
+import { loadTerms } from './lib/terminal/terminals.svelte'
+import { loadExpansion } from './lib/tree/expansion.svelte'
 
 const target = document.getElementById('app')
 if (!target) throw new Error('#app not found')
@@ -18,9 +20,15 @@ void (async () => {
   await loadDrafts()
   await loadCorpus()
   startSync()
-  // Open the first collection of whatever space we're in (works for any space, not just demo).
-  const first = grove.collections.tree().find((n) => n.kind === 'collection')
-  if (first?.kind === 'collection') openCollection(first.path)
+  // Restore this space's persisted UI: terminals + open tabs + tree expansion (drafts loaded above).
+  loadTerms()
+  loadExpansion()
+  const restoredTabs = loadTabs()
+  // Only auto-open the first collection on a fresh space with nothing restored.
+  if (!restoredTabs) {
+    const first = grove.collections.tree().find((n) => n.kind === 'collection')
+    if (first?.kind === 'collection') openCollection(first.path)
+  }
 })()
 
 export default app

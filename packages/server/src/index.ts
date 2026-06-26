@@ -251,6 +251,207 @@ app.post('/commit', async (c) => {
   return c.json({ ok: true, headCommit: res.headCommit, builtAt: res.meta?.builtAt })
 })
 
+// Author tier (mechanism b): re-file — move record .md files and collection subtrees within a
+// space by dragging them in the tree. Direct git mv + rebuild (mirrors /incoming; no worktree
+// gate) so the move lands immediately and clients respin. Path-safe; never clobbers an existing
+// target; refuses to move a collection into itself or a descendant.
+interface MoveItem {
+  type: 'record' | 'collection'
+  id: string // record slug (no .md) or collection path
+}
+
+function insideSpace(dir: string, rel: string): boolean {
+  return !rel.includes('..') && resolve(dir, rel).startsWith(dir + sep)
+}
+
+// Compute the on-disk {from,to} for one re-file, or null if it's invalid (escapes the space,
+// missing source, would clobber, or a no-op). dest is the target collection path ('' = root).
+function moveTarget(
+  dir: string,
+  item: MoveItem,
+  dest: string,
+): { from: string; to: string } | null {
+  const destRel = dest.replace(/^\/+|\/+$/g, '')
+  if (destRel && !existsSync(resolve(dir, destRel))) return null
+  const base = item.id.split('/').pop() ?? item.id
+  const from = item.type === 'record' ? `${item.id}.md` : item.id
+  const toBase = item.type === 'record' ? `${base}.md` : base
+  const to = destRel ? `${destRel}/${toBase}` : toBase
+  if (from === to) return null
+  if (item.type === 'collection' && (to === from || to.startsWith(`${from}/`))) return null // into self/descendant
+  if (!insideSpace(dir, from) || !insideSpace(dir, to)) return null
+  if (!existsSync(resolve(dir, from)) || existsSync(resolve(dir, to))) return null
+  return { from, to }
+}
+
+app.post('/move', async (c) => {
+  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const body = (await c.req.json()) as { items?: MoveItem[]; dest?: string }
+  const items = body.items ?? []
+  const dest = body.dest ?? ''
+  if (!items.length) return c.text('items[] required', 400)
+  const moves: { from: string; to: string }[] = []
+  for (const it of items) {
+    const m = moveTarget(dir, it, dest)
+    if (!m) return c.json({ ok: false, error: `cannot move ${it.id} → ${dest || '(root)'}` }, 400)
+    moves.push(m)
+  }
+  for (const m of moves) {
+    mkdirSync(dirname(resolve(dir, m.to)), { recursive: true })
+    renameSync(resolve(dir, m.from), resolve(dir, m.to))
+  }
+  gitCommitAll(dir, `grove: move ${moves.map((m) => `${m.from} → ${m.to}`).join(', ')}`)
+  broadcast(name, buildSpace(dir))
+  return c.json({ ok: true, moves })
+})
+
+// OS drag-drop upload: dropped files land in the target collection dir. Markdown/yaml become
+// records (the corpus picks them up); other allowed types are stored as assets alongside them.
+// Binary-safe; path-safe; one git commit + rebuild per file (mirrors /incoming).
+const UPLOAD_EXT = /\.(md|markdown|ya?ml|txt|csv|tsv|json|png|jpe?g|gif|svg|webp|pdf)$/i
+function safeUploadTarget(dir: string, rel: string): string | null {
+  if (!insideSpace(dir, rel) || !UPLOAD_EXT.test(rel)) return null
+  return resolve(dir, rel)
+}
+
+app.put('/upload/*', async (c) => {
+  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const rel = decodeURIComponent(c.req.path.replace(/^\/upload\//, ''))
+  const target = safeUploadTarget(dir, rel)
+  if (!target) return c.text('bad path or unsupported type', 400)
+  const buf = Buffer.from(await c.req.arrayBuffer())
+  if (!buf.length) return c.text('empty body', 400)
+  mkdirSync(dirname(target), { recursive: true })
+  const tmp = `${target}.tmp`
+  writeFileSync(tmp, buf)
+  renameSync(tmp, target)
+  gitCommitAll(dir, `grove: upload ${rel}`)
+  broadcast(name, buildSpace(dir))
+  return c.body(null, 204)
+})
+
+// ── bin: a raw, first-class view of <space>/bin — real OS files, executables included. Unlike the
+// markdown corpus (a derived projection), this reflects the filesystem verbatim, so scripts kept
+// with a space are visible, editable, and runnable (term-init puts <space>/bin first on PATH). All
+// three routes are confined to <space>/bin and reject path traversal.
+const binRoot = (dir: string) => join(dir, 'bin')
+
+interface FsEntry {
+  path: string // space-relative, e.g. "bin/deploy.sh"
+  name: string
+  dir: boolean
+  exec: boolean
+  size: number
+}
+
+// Names never surfaced in the bin view (build artifacts / env / VCS clutter). Dotfiles are hidden
+// separately. Hidden dirs aren't recursed into, so e.g. __pycache__ never shows up or expands.
+const BIN_HIDDEN_NAMES = new Set([
+  '__pycache__',
+  'node_modules',
+  '.git',
+  '.venv',
+  'venv',
+  '.DS_Store',
+  '.mypy_cache',
+  '.pytest_cache',
+  '.ruff_cache',
+  '.idea',
+  '.vscode',
+])
+const isHiddenBinEntry = (n: string): boolean =>
+  n.startsWith('.') || BIN_HIDDEN_NAMES.has(n) || /\.(pyc|pyo|class)$/.test(n)
+
+function listBin(dir: string): FsEntry[] {
+  const root = binRoot(dir)
+  mkdirSync(root, { recursive: true })
+  const out: FsEntry[] = []
+  const walk = (abs: string, rel: string) => {
+    let stats: { n: string; s: ReturnType<typeof statSync> }[]
+    try {
+      stats = readdirSync(abs)
+        .filter((n) => !isHiddenBinEntry(n))
+        .map((n) => ({ n, s: statSync(join(abs, n)) }))
+    } catch {
+      return
+    }
+    // directories first, then alphabetical
+    stats.sort(
+      (a, b) => Number(b.s.isDirectory()) - Number(a.s.isDirectory()) || a.n.localeCompare(b.n),
+    )
+    for (const { n, s } of stats) {
+      const childRel = rel ? `${rel}/${n}` : n
+      const isDir = s.isDirectory()
+      out.push({
+        path: `bin/${childRel}`,
+        name: n,
+        dir: isDir,
+        exec: !isDir && (s.mode & 0o111) !== 0,
+        size: isDir ? 0 : s.size,
+      })
+      if (isDir) walk(join(abs, n), childRel)
+    }
+  }
+  walk(root, '')
+  return out
+}
+
+// Resolve a space-relative path that must live inside <space>/bin (or be "bin" itself).
+function safeBinPath(dir: string, rel: string): string | null {
+  if (rel.includes('..') || !(rel === 'bin' || rel.startsWith('bin/'))) return null
+  const abs = resolve(dir, rel)
+  const root = binRoot(dir)
+  if (abs !== root && !abs.startsWith(root + sep)) return null
+  return abs
+}
+
+app.get('/fs/list', (c) => {
+  const { dir } = reqSpace(c.req.header('cookie'))
+  return c.json({ entries: listBin(dir) })
+})
+
+const FS_READ_MAX = 1024 * 1024
+app.get('/fs/read', (c) => {
+  const { dir } = reqSpace(c.req.header('cookie'))
+  const abs = safeBinPath(dir, c.req.query('path') ?? '')
+  if (!abs || !existsSync(abs)) return c.text('not found', 404)
+  const st = statSync(abs)
+  if (st.isDirectory()) return c.text('is a directory', 400)
+  const exec = (st.mode & 0o111) !== 0
+  if (st.size > FS_READ_MAX) {
+    return c.json({
+      path: c.req.query('path'),
+      exec,
+      size: st.size,
+      binary: true,
+      tooLarge: true,
+      content: '',
+    })
+  }
+  const buf = readFileSync(abs)
+  const binary = buf.includes(0)
+  return c.json({
+    path: c.req.query('path'),
+    exec,
+    size: st.size,
+    binary,
+    content: binary ? '' : buf.toString('utf8'),
+  })
+})
+
+app.put('/fs/write', async (c) => {
+  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const rel = c.req.query('path') ?? ''
+  const abs = safeBinPath(dir, rel)
+  if (!abs || rel === 'bin') return c.text('bad path', 400)
+  const body = await c.req.text()
+  mkdirSync(dirname(abs), { recursive: true })
+  writeFileSync(abs, body) // an existing file keeps its mode, so the executable bit survives an edit
+  gitCommitAll(dir, `grove: edit ${rel}`)
+  broadcast(name, buildSpace(dir)) // ping clients (bumps builtAt) so the bin view refreshes
+  return c.body(null, 204)
+})
+
 // Save a screenshot the FE captured (PNG bytes in the body) to <root>/screenshots/, plus a
 // stable latest.png. This is the collaboration channel: the user snaps, an agent reads the file.
 const SHOTS = join(ROOT, 'screenshots')
@@ -287,6 +488,28 @@ app.post('/exec', async (c) => {
   })
 })
 
+// Close a terminal tab's PTY (the FE closed the tab). Scoped to the request's space; kills the bash
+// process and drops the session so it doesn't linger until the idle sweep. No-op if already gone.
+app.post('/pty-close', async (c) => {
+  const { dir } = reqSpace(c.req.header('cookie'))
+  const { sid } = (await c.req.json().catch(() => ({}))) as { sid?: string }
+  if (!sid || !/^[A-Za-z0-9_-]{1,80}$/.test(sid)) return c.text('sid required', 400)
+  const session = ptySessions.get(sessionKey(dir, sid))
+  if (session) {
+    ptySessions.delete(session.key)
+    if (session.idleTimer) clearTimeout(session.idleTimer)
+    for (const client of [...session.clients]) {
+      try {
+        client.close(4001, 'closed')
+      } catch {
+        /* already gone */
+      }
+    }
+    session.pty.kill()
+  }
+  return c.body(null, 204)
+})
+
 // SSE change-feed, scoped to the request's space: a "changed" ping per respin the FE reacts to.
 app.get('/events', (c) => {
   const { name } = reqSpace(c.req.header('cookie'))
@@ -315,10 +538,12 @@ const GROVE_ROUTES = new Set([
   '/corpus.json',
   '/events',
   '/exec',
+  '/move',
+  '/pty-close',
   '/screenshot',
   '/spaces',
 ])
-const GROVE_PREFIXES = ['/db/', '/incoming/']
+const GROVE_PREFIXES = ['/db/', '/incoming/', '/upload/', '/fs/']
 
 function isGroveHttpRoute(url: string | undefined): boolean {
   const path = new URL(url ?? '/', 'http://localhost').pathname

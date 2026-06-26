@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authState } from './lib/auth.svelte'
+  import FileEditor from './lib/bin/FileEditor.svelte'
   import Chrome from './lib/Chrome.svelte'
   import DocView from './lib/doc/DocView.svelte'
   import RecordEditor from './lib/editor/RecordEditor.svelte'
@@ -11,7 +12,7 @@
   import SearchResults from './lib/search/SearchResults.svelte'
   import { activeTab } from './lib/state.svelte'
   import TabBar from './lib/TabBar.svelte'
-  import Terminal from './lib/Terminal.svelte'
+  import TerminalTabs from './lib/terminal/TerminalTabs.svelte'
   import TreeView from './lib/tree/TreeView.svelte'
   import { editor, setTermH, setTreeW, toggleTerm, toggleTree, ui } from './lib/ui.svelte'
 
@@ -67,13 +68,15 @@
 
     <main class="right">
       <TabBar />
-      <div class="content" class:flush={active?.kind === 'doc' && editor.editing}>
+      <div class="content" class:flush={(active?.kind === 'doc' && editor.editing) || active?.kind === 'file'}>
         {#if active}
           {#key active.id}
             {#if active.kind === 'collection'}
               <CollectionPage path={active.ref} />
             {:else if active.kind === 'doc'}
               {#if editor.editing}<RecordEditor slug={active.ref} />{:else}<DocView slug={active.ref} />{/if}
+            {:else if active.kind === 'file'}
+              <FileEditor path={active.ref} />
             {:else if active.kind === 'project'}
               <ProjectPage />
             {:else if active.kind === 'log'}
@@ -96,7 +99,7 @@
         <span class="grow"></span>
         <button class="th-btn" title="Collapse terminal" onclick={toggleTerm}><Icon name="chevron-down" size={14} /></button>
       </div>
-      <div class="term-body"><Terminal /></div>
+      <div class="term-body"><TerminalTabs /></div>
     </footer>
   {:else}
     <button class="term-collapsed" title="Show terminal" onclick={toggleTerm}>

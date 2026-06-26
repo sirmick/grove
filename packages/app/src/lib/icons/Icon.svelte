@@ -11,7 +11,9 @@
     ChevronUp,
     ChevronsUpDown,
     CircleHelp,
+    File,
     FileClock,
+    FileCog,
     FileText,
     Folder,
     FolderOpen,
@@ -20,10 +22,12 @@
     PanelLeft,
     Pencil,
     Plus,
+    RefreshCw,
     Save,
     ScrollText,
     Search,
     Table2,
+    Terminal,
   } from '@lucide/svelte'
   import type { Component } from 'svelte'
 
@@ -39,7 +43,9 @@
     'chevron-up': ChevronUp,
     'chevrons-up-down': ChevronsUpDown,
     'help-circle': CircleHelp,
+    file: File,
     'file-clock': FileClock,
+    'file-cog': FileCog,
     'file-text': FileText,
     folder: Folder,
     'folder-open': FolderOpen,
@@ -48,10 +54,12 @@
     'panel-left': PanelLeft,
     pencil: Pencil,
     plus: Plus,
+    'refresh-cw': RefreshCw,
     save: Save,
     'scroll-text': ScrollText,
     search: Search,
     'table-2': Table2,
+    terminal: Terminal,
   }
 
   const Cmp = $derived(map[name])

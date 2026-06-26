@@ -3,7 +3,8 @@
 [ -f /etc/bash.bashrc ] && source /etc/bash.bashrc
 [ -f "$HOME/.bashrc" ] && source "$HOME/.bashrc"
 
-export PATH="$GROVE_ROOT/bin:$GROVE_ROOT/node_modules/.bin:$HOME/.local/bin:$PATH"
+# The space's own bin/ goes first, so executables you drop in the tree's "bin" folder run by name.
+export PATH="${GROVE_SPACE:+$GROVE_SPACE/bin:}$GROVE_ROOT/bin:$GROVE_ROOT/node_modules/.bin:$HOME/.local/bin:$PATH"
 
 printf '\n\033[1;32m🌳 grove terminal\033[0m  ·  space: %s\n' "${GROVE_SPACE:-?}"
 printf '   \033[2mgrove collections tree   ·   grove --help\033[0m\n'
