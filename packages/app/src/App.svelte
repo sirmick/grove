@@ -223,7 +223,7 @@
   .term-body {
     flex: 1;
     min-height: 0;
-    padding: 6px 10px;
+    /* No padding: the terminal tab strip runs edge-to-edge and sits flush under the resize bar. */
   }
   .term-collapsed {
     flex: none;
