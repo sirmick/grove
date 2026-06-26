@@ -710,12 +710,12 @@ export function readMeta(spaceDir: string): DbMeta | null {
 }
 
 export function watchSpace(spaceDir: string, onBuild: (m: DbMeta) => void) {
-  // Watch only db/respins.json — the single file every build rewrites — so each space costs one
-  // inotify watch (not a recursive content tree, which exhausts fs.inotify.max_user_watches). No
-  // rebuild here: whoever wrote respins.json already built (rebuilding would rewrite it and loop);
-  // we just read meta + broadcast. External respins (e.g. a CLI commit) thus reach clients;
-  // in-app edits already broadcast inline.
-  const watcher = chokidar.watch(join(spaceDir, 'db', 'respins.json'), { ignoreInitial: true })
+  // (1) Watch db/respins.json — the single file every build rewrites — to pick up builds done by
+  // *other* processes (e.g. a `grove` CLI commit): they already built, so we just read meta +
+  // broadcast (rebuilding here would rewrite respins.json and loop).
+  const respinWatcher = chokidar.watch(join(spaceDir, 'db', 'respins.json'), {
+    ignoreInitial: true,
+  })
   let timer: ReturnType<typeof setTimeout> | undefined
   const reload = () => {
     if (timer) clearTimeout(timer)
@@ -724,9 +724,46 @@ export function watchSpace(spaceDir: string, onBuild: (m: DbMeta) => void) {
       if (m) onBuild(m)
     }, 150)
   }
-  watcher.on('all', reload)
-  // Never let a watcher failure (e.g. ENOSPC: inotify limit) kill the server — live reload is a
-  // convenience; log and carry on without it.
-  watcher.on('error', (e) => console.warn(`watchSpace(${spaceDir}) disabled: ${(e as Error).message}`))
-  return watcher
+  respinWatcher.on('all', reload)
+  respinWatcher.on('error', (e) =>
+    console.warn(`watchSpace(${spaceDir}) respin watch disabled: ${(e as Error).message}`),
+  )
+
+  // (2) Watch the source tree so a raw edit on disk — terminal `echo >> notes/x.md`, an external
+  // editor, `git pull` — refreshes open tabs and folders even though it never went through a build.
+  // db/ is excluded so the build's own writes don't loop; .git/node_modules/.venv are excluded to
+  // bound the inotify watch count. Set GROVE_NO_SOURCE_WATCH=1 to opt out on very large spaces.
+  let srcWatcher: ReturnType<typeof chokidar.watch> | undefined
+  if (process.env.GROVE_NO_SOURCE_WATCH !== '1') {
+    const dbDir = join(spaceDir, 'db')
+    srcWatcher = chokidar.watch(spaceDir, {
+      ignoreInitial: true,
+      ignored: (p: string) =>
+        p === dbDir ||
+        p.startsWith(`${dbDir}/`) ||
+        /[/\\](\.git|node_modules|\.venv)([/\\]|$)/.test(p),
+    })
+    let rebuildTimer: ReturnType<typeof setTimeout> | undefined
+    const rebuild = () => {
+      if (rebuildTimer) clearTimeout(rebuildTimer)
+      rebuildTimer = setTimeout(() => {
+        try {
+          onBuild(buildSpace(spaceDir)) // rebuild projections + journal a respin, then broadcast
+        } catch (e) {
+          console.warn(`watchSpace(${spaceDir}) source rebuild failed: ${(e as Error).message}`)
+        }
+      }, 200)
+    }
+    for (const ev of ['add', 'change', 'unlink', 'addDir', 'unlinkDir'] as const) {
+      srcWatcher.on(ev, rebuild)
+    }
+    srcWatcher.on('error', (e) =>
+      console.warn(`watchSpace(${spaceDir}) source watch disabled: ${(e as Error).message}`),
+    )
+  }
+
+  // Return a handle that closes both watchers.
+  return {
+    close: () => Promise.all([respinWatcher.close(), srcWatcher?.close()]).then(() => undefined),
+  }
 }

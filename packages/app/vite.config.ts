@@ -29,6 +29,7 @@ export default defineConfig({
             '/upload': SERVER,
             '/move': SERVER,
             '/fs': SERVER,
+            '/assets': SERVER,
             '/commit': SERVER,
             '/screenshot': SERVER,
             '/exec': SERVER,

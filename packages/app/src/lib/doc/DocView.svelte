@@ -34,6 +34,17 @@
     )
     void commitAll()
   }
+
+  // Wikilinks and relative .md links render as in-app anchors (.wikilink / .rellink) carrying a
+  // project-relative data-slug — intercept their clicks to open the record instead of navigating.
+  function onBodyClick(e: MouseEvent) {
+    const a = (e.target as HTMLElement).closest('a.wikilink, a.rellink')
+    if (!a) return
+    const target = (a as HTMLElement).dataset.slug
+    if (!target) return
+    e.preventDefault()
+    openRecord(target)
+  }
 </script>
 
 {#if rec}
@@ -58,7 +69,10 @@
       </dl>
     {/if}
 
-    <div class="body" use:diagrams={rec.body}>{@html renderMarkdown(proseOf(rec.body))}</div>
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="body" use:diagrams={rec.body} onclick={onBodyClick}>
+      {@html renderMarkdown(proseOf(rec.body), slug)}
+    </div>
 
     <section class="links">
       <h3><Icon name="link" size={15} /> Links</h3>
@@ -91,5 +105,21 @@
     background: var(--accent-bg);
     border-color: var(--accent);
     color: var(--accent);
+  }
+  /* In-app links (wikilinks + relative .md) rendered into the doc body via {@html}. */
+  .body :global(a.wikilink),
+  .body :global(a.rellink) {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent);
+    cursor: pointer;
+  }
+  .body :global(a.wikilink:hover),
+  .body :global(a.rellink:hover) {
+    border-bottom-style: solid;
+  }
+  .body :global(img) {
+    max-width: 100%;
+    height: auto;
   }
 </style>

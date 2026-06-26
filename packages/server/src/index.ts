@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 // worktree transaction) and dev tier (exec + pty), with a watcher per space. Multiple spaces are
 // selectable per request via the `grove_space` cookie; GROVE_SPACE forces single-space mode (e2e).
 import {
+  type Stats,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -367,7 +368,7 @@ function listBin(dir: string): FsEntry[] {
   mkdirSync(root, { recursive: true })
   const out: FsEntry[] = []
   const walk = (abs: string, rel: string) => {
-    let stats: { n: string; s: ReturnType<typeof statSync> }[]
+    let stats: { n: string; s: Stats }[]
     try {
       stats = readdirSync(abs)
         .filter((n) => !isHiddenBinEntry(n))
@@ -450,6 +451,42 @@ app.put('/fs/write', async (c) => {
   gitCommitAll(dir, `grove: edit ${rel}`)
   broadcast(name, buildSpace(dir)) // ping clients (bumps builtAt) so the bin view refreshes
   return c.body(null, 204)
+})
+
+// Serve raw space files so relative links/images in rendered docs actually resolve (the markdown
+// renderer rewrites a doc-relative `![](pic.png)` to `/assets/<collection>/pic.png`). Read-only,
+// path-confined to the space, and refuses the internals (.git, derived db/). Same auth gate as
+// everything else.
+const ASSET_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+  pdf: 'application/pdf',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  csv: 'text/csv; charset=utf-8',
+  json: 'application/json; charset=utf-8',
+}
+app.get('/assets/*', (c) => {
+  const { dir } = reqSpace(c.req.header('cookie'))
+  const rel = decodeURIComponent(c.req.path.replace(/^\/assets\//, ''))
+  if (rel.includes('..')) return c.text('bad path', 400)
+  const abs = resolve(dir, rel)
+  if (abs !== dir && !abs.startsWith(dir + sep)) return c.text('bad path', 400)
+  if (/(^|\/)(\.git|db)(\/|$)/.test(rel)) return c.text('forbidden', 403)
+  try {
+    if (statSync(abs).isDirectory()) return c.text('is a directory', 400)
+    const ext = (rel.split('.').pop() ?? '').toLowerCase()
+    return c.body(readFileSync(abs), 200, {
+      'content-type': ASSET_MIME[ext] ?? 'application/octet-stream',
+      'cache-control': 'no-cache',
+    })
+  } catch {
+    return c.text('not found', 404)
+  }
 })
 
 // Save a screenshot the FE captured (PNG bytes in the body) to <root>/screenshots/, plus a
@@ -543,7 +580,7 @@ const GROVE_ROUTES = new Set([
   '/screenshot',
   '/spaces',
 ])
-const GROVE_PREFIXES = ['/db/', '/incoming/', '/upload/', '/fs/']
+const GROVE_PREFIXES = ['/db/', '/incoming/', '/upload/', '/fs/', '/assets/']
 
 function isGroveHttpRoute(url: string | undefined): boolean {
   const path = new URL(url ?? '/', 'http://localhost').pathname

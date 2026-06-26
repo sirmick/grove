@@ -6,6 +6,7 @@
   import { spaceState, switchSpace } from './space.svelte'
   import { showSearch } from './state.svelte'
   import { toggleTree } from './ui.svelte'
+  import { VERSION } from './version'
 
   let { onhelp }: { onhelp?: () => void } = $props()
 
@@ -43,6 +44,7 @@
 <div class="chrome">
   <div class="row">
     <span class="brand">grove</span>
+    <span class="ver" title="grove version">v{VERSION}</span>
     {#if spaceState.spaces.length > 1}
       <select
         class="spacesel"
@@ -92,6 +94,12 @@
     font-weight: 700;
     color: var(--accent);
     letter-spacing: 0.5px;
+  }
+  .ver {
+    font-size: 10px;
+    color: var(--muted);
+    align-self: flex-end;
+    padding-bottom: 2px;
   }
   .spacesel {
     background: var(--panel-2);
