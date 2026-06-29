@@ -46,6 +46,44 @@ Commands (\`grove <namespace> <verb> [options]\`):`
 const POSTAMBLE = `\nTips: most verbs print JSON. Pass --space <dir> to target a different space
 (defaults to $GROVE_SPACE). Run \`grove <ns> <verb> --help\` for a verb's options.`
 
+// Self-improvement loop: every session evaluates itself and records what it learned into a
+// dedicated \`lessons\` collection, so future sessions start smarter. The accumulated lessons are
+// injected (digest first) at the end of this prompt by the \`ai.prompt\` op.
+const SELF_IMPROVEMENT = `\nGetting better over time — you keep a running record of how your own work goes in a
+\`lessons\` collection, and learn from it:
+- **Read first.** A "# Past lessons" section at the very end of this prompt holds the digest plus
+  recent notes from earlier sessions. Treat it as standing guidance: apply what worked, avoid what
+  didn't, and don't repeat mistakes already recorded there.
+- **Make sure the collection exists.** If there is no \`lessons\` collection yet, create it once:
+  \`grove collections create --name lessons --entry editor\`.
+- **Evaluate yourself at the end.** Before you finish a session, do a short self-review pass: What
+  was the task? What went well? What went wrong or was harder than expected? What would make the
+  next session faster or more correct? Be honest and specific — vague praise is useless.
+- **Write a note.** Record that review as one new leaf in the \`lessons\` collection, e.g.
+  \`lessons/<short-slug>.md\` with a one-line summary title and bullet points for what worked, what
+  to avoid, and concrete guidance for next time. One note per session; keep it tight.
+- **Maintain the digest.** Keep a single \`lessons/summary.md\` leaf that distills the durable,
+  repeated lessons into a compact list (merge and prune as patterns recur, so it stays short rather
+  than growing forever). This summary is what future sessions lean on most, so curate it well.
+- Commit these notes with the rest of your work so they persist.`
+
+// Frequent actions: a self-maintained menu of the recurring things the user asks for in this space,
+// stored in `_grove/actions.md` and surfaced on the Project page so they're one click from re-running.
+const FREQUENT_ACTIONS = `\nFrequent actions — you maintain a short menu of the recurring things the user asks
+you to do in this space. It's shown on the Project page so the user can re-trigger a routine task
+at a glance, so keep it current and useful:
+- The menu lives in \`_grove/actions.md\`. Each action is a \`## Title\` section; under the title put a
+  \`**Asked:** N×\` line (how many times you've been asked) and then a tight, self-contained
+  restatement of the request — phrased as an instruction you could act on directly next time
+  (e.g. in a cars space: "## Pull new cars" → fetch recently released/refreshed models in my
+  segments and add any missing ones as \`_status: review\`).
+- After you handle a request that's a recurring *kind* of task for this space, update the menu: add
+  a new entry if it's novel, otherwise bump its \`Asked\` count and sharpen the wording. Don't record
+  genuine one-offs.
+- Curate it: merge near-duplicates, prune stale entries, and keep the highest-frequency actions
+  near the top. This file is yours to maintain — the user reads and re-triggers from it.
+- Commit it with the rest of your work.`
+
 /** Render the command surface straight from the registry, so it tracks the real CLI. */
 export function buildSystemPrompt(ops: OpTree): string {
   const lines: string[] = []
@@ -60,5 +98,5 @@ export function buildSystemPrompt(ops: OpTree): string {
       lines.push(`  grove ${ns} ${verb}${opts ? ` ${opts}` : ''}`)
     }
   }
-  return `${PREAMBLE}\n${lines.join('\n')}\n${POSTAMBLE}`
+  return `${PREAMBLE}\n${lines.join('\n')}\n${POSTAMBLE}\n${SELF_IMPROVEMENT}\n${FREQUENT_ACTIONS}`
 }

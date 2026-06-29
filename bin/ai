@@ -5,7 +5,7 @@ set -euo pipefail
 
 usage() {
   cat <<\USAGE
-Usage: ai [--codex|--claude] [--yolo] [provider args...]
+Usage: ai [--codex|--claude] [--yolo] [--no-maintain] [provider args...]
 
 Launch an AI assistant interactively, seeded with grove + project context.
 Defaults to --codex.
@@ -18,12 +18,18 @@ args, so they can override the space defaults.
 --yolo maps to the provider's unsafe permission-bypass mode:
   codex  -> --dangerously-bypass-approvals-and-sandbox
   claude -> --dangerously-skip-permissions
+
+When the interactive session exits, a brief non-interactive "upkeep" pass
+continues the conversation to record what you asked (the Project page's
+frequent-actions menu, in _grove/actions.md) and a self-evaluation lesson,
+then commits them. Disable it with --no-maintain or GROVE_AI_MAINTAIN=0.
 USAGE
 }
 
 provider="codex"
 provider_flag=""
 yolo=0
+maintain="${GROVE_AI_MAINTAIN:-1}"
 args=()
 
 while (($#)); do
@@ -39,6 +45,10 @@ while (($#)); do
       ;;
     --yolo)
       yolo=1
+      shift
+      ;;
+    --no-maintain)
+      maintain=0
       shift
       ;;
     -h|--help)
@@ -137,6 +147,33 @@ fi
 
 prompt="$(grove ai prompt)"
 
+# End-of-session upkeep pass: once the interactive session exits, continue that same conversation
+# non-interactively so the assistant can record what it was asked (the frequent-actions menu in
+# _grove/actions.md) plus a self-evaluation lesson, then commit. It already carries the grove +
+# project system prompt from the resumed session, so this nudge stays short. Best-effort: it runs
+# headless (must apply edits + git-commit without a prompt), and any failure is swallowed so it can
+# never change the exit status the user saw from their own session.
+maintenance_prompt="Automatic end-of-session upkeep — work non-interactively, then stop:
+1. For any recurring kind of request you handled this session, update the frequent-actions menu in
+   _grove/actions.md: add a new \"## Title\" entry or bump its \"**Asked:** N×\" count.
+2. Self-evaluate this session and append one short lesson to the lessons collection, refreshing
+   lessons/summary.md (create the collection if it does not exist yet).
+3. Commit these notes. If nothing is worth recording, change nothing and exit."
+
+run_maintenance() {
+  [[ "$maintain" == 0 ]] && return 0
+  case "$provider" in
+    codex)
+      codex exec resume --last "$maintenance_prompt" </dev/null \
+        || echo "ai: end-of-session upkeep pass skipped (codex exec resume failed)" >&2
+      ;;
+    claude)
+      claude --continue --print --permission-mode bypassPermissions "$maintenance_prompt" </dev/null \
+        || echo "ai: end-of-session upkeep pass skipped (claude --continue failed)" >&2
+      ;;
+  esac
+}
+
 case "$provider" in
   codex)
     if ! command -v codex >/dev/null 2>&1; then
@@ -144,7 +181,12 @@ case "$provider" in
       exit 127
     fi
     if ((yolo)); then args=(--dangerously-bypass-approvals-and-sandbox "${args[@]}"); fi
-    exec codex "${config_args[@]}" "${args[@]}" "$prompt"
+    set +e
+    codex "${config_args[@]}" "${args[@]}" "$prompt"
+    code=$?
+    set -e
+    run_maintenance
+    exit "$code"
     ;;
   claude)
     if ! command -v claude >/dev/null 2>&1; then
@@ -152,6 +194,11 @@ case "$provider" in
       exit 127
     fi
     if ((yolo)); then args=(--dangerously-skip-permissions "${args[@]}"); fi
-    exec claude --append-system-prompt "$prompt" "${config_args[@]}" "${args[@]}"
+    set +e
+    claude --append-system-prompt "$prompt" "${config_args[@]}" "${args[@]}"
+    code=$?
+    set -e
+    run_maintenance
+    exit "$code"
     ;;
 esac

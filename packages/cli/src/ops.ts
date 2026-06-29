@@ -307,6 +307,19 @@ export const ops = defineOps({
           .filter(([, p]) => p?.trim())
           .map(([dir, p]) => `## ${dir}\n\n${(p as string).trim()}`)
         if (collections.length) sections.push(`# Collections\n\n${collections.join('\n\n')}`)
+        // Self-improvement loop: feed back what earlier sessions learned, digest (summary.md) first
+        // then the individual lesson notes, so each session starts from accumulated experience.
+        const lessonKeys = Object.keys(c)
+          .filter((p) => p.startsWith('lessons/') && p.endsWith('.md'))
+          .filter((p) => !p.includes('/_grove/') && !p.endsWith('/README.md'))
+          .sort((a, b) =>
+            a === 'lessons/summary.md' ? -1 : b === 'lessons/summary.md' ? 1 : a.localeCompare(b),
+          )
+        const lessons = lessonKeys
+          .map((p) => [p, c[p] ?? ''] as const)
+          .filter(([, body]) => body.trim())
+          .map(([p, body]) => `## ${p.slice('lessons/'.length, -'.md'.length)}\n\n${body.trim()}`)
+        if (lessons.length) sections.push(`# Past lessons\n\n${lessons.join('\n\n')}`)
         return sections.join('\n\n---\n\n')
       },
     },
