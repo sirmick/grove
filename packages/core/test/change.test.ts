@@ -120,6 +120,14 @@ describe('change transaction (mechanism a)', () => {
     }
   })
 
+  it('reports Grove commit preparation failures to callers', () => {
+    writeFileSync(join(space, 'notes/_grove/schema.yaml'), 'fields: [unterminated\n')
+
+    expect(() => gitCommitAll(space, 'break schema')).toThrow(
+      /failed to prepare Grove commit artifacts/,
+    )
+  })
+
   it('initializes a standalone space before its first changeset transaction', () => {
     const fresh = mkdtempSync(join(tmpdir(), 'grove-fresh-'))
     try {

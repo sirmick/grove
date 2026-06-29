@@ -42,19 +42,41 @@ function spawnOutput(e: unknown): string | null {
   return typeof out === 'string' ? out : null
 }
 
+function errorMessage(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message
+  return String(e)
+}
+
+function commandOutput(e: unknown, stream: 'stdout' | 'stderr'): string {
+  const err = e as {
+    stdout?: Buffer | string
+    stderr?: Buffer | string
+    output?: unknown[]
+  }
+  const value = err[stream] ?? err.output?.[stream === 'stdout' ? 1 : 2]
+  if (Buffer.isBuffer(value)) return value.toString('utf8').trim()
+  return typeof value === 'string' ? value.trim() : ''
+}
+
 function gitOutput(args: string[], cwd: string): string {
-  // Discard stderr: failures are expected on probes (rev-parse/check-ignore outside a repo) and are
-  // handled via catch + fallbacks; we don't want git's "fatal: …" leaking to the CLI/terminal.
+  // Probe failures (rev-parse/check-ignore outside a repo) are caught by callers. When an
+  // operation is not a probe, include stderr so CLI/MCP callers get a useful top-level error.
   try {
     return execFileSync('git', args, {
       cwd,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (e) {
     const out = spawnOutput(e)
     if (out !== null) return out
-    throw e
+    const status = (e as { status?: number }).status
+    const stderr = commandOutput(e, 'stderr')
+    const stdout = commandOutput(e, 'stdout')
+    const detail = stderr || stdout || errorMessage(e)
+    throw new Error(
+      `git ${args.join(' ')} failed${status === undefined ? '' : ` with status ${status}`}: ${detail}`,
+    )
   }
 }
 
@@ -501,14 +523,14 @@ export function gitCommitAll(dir: string, message: string): string {
   if (isSpace) {
     try {
       prepareCommit(dir, message)
-    } catch {
-      // Keep the old "commit what we can" behavior for direct helpers. The build-gated transaction
-      // path still treats preparation/build failures as errors before merging.
+    } catch (e) {
+      throw new Error(`failed to prepare Grove commit artifacts in ${dir}: ${errorMessage(e)}`)
     }
   }
   // For an in-repo space, scope add/commit to its subpath so it never sweeps up unrelated changes
   // elsewhere in the enclosing repo.
   const scope = managedByEnclosing(dir) ? ['--', '.'] : []
+  let commitHead = ''
   try {
     const noHooks = join(tmpdir(), 'grove-no-hooks')
     mkdirSync(noHooks, { recursive: true })
@@ -527,17 +549,20 @@ export function gitCommitAll(dir: string, message: string): string {
       ],
       dir,
     )
-  } catch {
-    // nothing to commit / git error
+    commitHead = headCommit(dir)
+  } catch (e) {
+    throw new Error(`failed to create Grove git commit in ${dir}: ${errorMessage(e)}`)
   }
   if (isSpace) {
     try {
       buildSpace(dir)
-    } catch {
-      // post-commit hooks cannot reject an already-created commit either; keep this helper lenient.
+    } catch (e) {
+      throw new Error(
+        `Grove git commit ${commitHead || '(unknown)'} was created, but respin failed in ${dir}: ${errorMessage(e)}`,
+      )
     }
   }
-  return headCommit(dir)
+  return commitHead || headCommit(dir)
 }
 
 // ── Change transactions (mechanism a): isolate edits in a git worktree, validate the build
