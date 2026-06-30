@@ -8,11 +8,13 @@ import { loadCorpus } from './lib/grove/corpusState.svelte'
 import { bootSpace } from './lib/space.svelte'
 import { loadTabs, openCollection } from './lib/state.svelte'
 import { loadTerms } from './lib/terminal/terminals.svelte'
+import { applyTheme } from './lib/theme.svelte'
 import { loadExpansion } from './lib/tree/expansion.svelte'
 
 const target = document.getElementById('app')
 if (!target) throw new Error('#app not found')
 
+applyTheme() // reflect the persisted/OS theme onto <html> before first paint
 const app = mount(App, { target })
 
 void (async () => {

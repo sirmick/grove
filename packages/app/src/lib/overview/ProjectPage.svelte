@@ -205,7 +205,7 @@
   .opath {
     margin-top: 4px;
     color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: var(--font-mono);
     font-size: 12px;
     overflow-wrap: anywhere;
   }

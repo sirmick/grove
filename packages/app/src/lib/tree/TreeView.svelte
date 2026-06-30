@@ -54,9 +54,9 @@
     margin: 4px 8px;
     padding: 4px 8px;
     font-size: 12px;
-    color: #ffd9d9;
-    background: #5a1d1d;
-    border: 1px solid #7a2a2a;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
     border-radius: 5px;
   }
   .prow {

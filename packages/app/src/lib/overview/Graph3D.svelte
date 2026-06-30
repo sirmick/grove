@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import * as THREE from 'three'
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+  import { theme } from '../theme.svelte'
 
   export interface GraphNode3D {
     slug: string
@@ -63,6 +64,21 @@
   const raycaster = new THREE.Raycaster()
   const palette = ['#008f73', '#276ef1', '#c56a00', '#d33f49', '#8357c5', '#007c9b', '#b7791f']
 
+  // Scene colors that depend on the active theme, read straight from the CSS tokens so the 3D map
+  // matches the rest of the app on a theme flip. The fixed node palette above reads on either
+  // background; only the canvas backdrop, label text, and the hover highlight need to track theme.
+  function themeColors() {
+    const s = getComputedStyle(host ?? document.documentElement)
+    const v = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback
+    return {
+      bg: v('--bg', '#0f1115'),
+      text: v('--text', '#d8dee9'),
+      related: v('--accent', '#008f73'),
+      active: '#d87500',
+    }
+  }
+  let colors = themeColors()
+
   function hash(s: string): number {
     let h = 2166136261
     for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619)
@@ -95,8 +111,8 @@
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.lineWidth = 10
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)'
-      ctx.fillStyle = '#172033'
+      ctx.strokeStyle = colors.bg // halo in the backdrop color keeps labels legible over the scene
+      ctx.fillStyle = colors.text
       const label = text.length > 28 ? `${text.slice(0, 25)}...` : text
       ctx.strokeText(label, 256, 64)
       ctx.fillText(label, 256, 64)
@@ -124,6 +140,7 @@
   }
 
   function buildScene() {
+    colors = themeColors()
     disposeObject(nodeGroup)
     disposeObject(edgeGroup)
     scene.remove(nodeGroup)
@@ -187,11 +204,11 @@
       const isHover = p === hovered
       const isRelated = p.data.related
       const color = isActive
-        ? new THREE.Color('#d87500')
+        ? new THREE.Color(colors.active)
         : isHover
-          ? new THREE.Color('#111827')
+          ? new THREE.Color(colors.text)
           : isRelated
-            ? new THREE.Color('#008f73')
+            ? new THREE.Color(colors.related)
             : collectionColor(p.data.slug)
       p.mesh.material.color.copy(color)
       p.mesh.material.emissive.copy(color)
@@ -292,14 +309,15 @@
   }
 
   onMount(() => {
+    colors = themeColors()
     scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2('#f6f8fb', 0.009)
+    scene.fog = new THREE.FogExp2(colors.bg, 0.009)
     camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1000)
     camera.position.set(0, 8, 76)
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
     renderer.outputColorSpace = THREE.SRGBColorSpace
-    renderer.setClearColor('#f6f8fb', 1)
+    renderer.setClearColor(colors.bg, 1)
     host.appendChild(renderer.domElement)
     controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
@@ -360,7 +378,11 @@
   })
 
   $effect(() => {
+    theme.current // rebuild + recolor the backdrop when the theme flips
     if (!scene) return
+    colors = themeColors()
+    scene.fog = new THREE.FogExp2(colors.bg, 0.009)
+    renderer.setClearColor(colors.bg, 1)
     buildScene()
   })
 </script>
@@ -374,7 +396,7 @@
     min-height: 360px;
     overflow: hidden;
     cursor: grab;
-    background: linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
+    background: var(--bg);
   }
   .graph3d:active {
     cursor: grabbing;

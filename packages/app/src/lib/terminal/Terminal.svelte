@@ -8,7 +8,20 @@
   import '@xterm/xterm/css/xterm.css'
   import { onMount } from 'svelte'
   import { copyText, pasteText } from '../clipboard'
+  import { theme } from '../theme.svelte'
   import { setTermTitle } from './terminals.svelte'
+
+  // xterm draws on a canvas, so it can't read CSS vars directly — pull the current --term-* token
+  // values off <html> and hand them to xterm. Re-read whenever the theme flips.
+  function xtermTheme() {
+    const s = getComputedStyle(document.documentElement)
+    const v = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback
+    return {
+      background: v('--term-bg', '#0b0d12'),
+      foreground: v('--term-fg', '#d8dee9'),
+      cursor: v('--accent', '#4ec9a8'),
+    }
+  }
 
   let {
     sid,
@@ -24,6 +37,12 @@
   let hasSel = $state(false)
 
   const isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent)
+
+  // Re-skin the live terminal when the theme flips (xterm applies theme changes immediately).
+  $effect(() => {
+    theme.current // track
+    if (term) term.options.theme = xtermTheme()
+  })
 
   // Refit + focus whenever this pane becomes visible (it had 0×0 while hidden). Guard against the
   // degenerate size so a still-collapsed container doesn't corrupt xterm's reflow.
@@ -90,7 +109,7 @@
     const t = new XTerm({
       fontSize: 12,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-      theme: { background: '#0b0d12', foreground: '#d8dee9' },
+      theme: xtermTheme(),
       cursorBlink: true,
     })
     const f = new FitAddon()
@@ -236,7 +255,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 4px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 6px 20px var(--shadow);
   }
   .ctxmenu button {
     background: none;

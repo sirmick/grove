@@ -277,9 +277,9 @@
   .map-shell {
     position: relative;
     overflow: hidden;
-    border: 1px solid #c8d3e3;
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: #f6f8fb;
+    background: var(--panel);
     margin-bottom: 14px;
   }
   .preview {
@@ -291,11 +291,11 @@
     flex-direction: column;
     width: min(440px, calc(100% - 24px));
     max-height: min(520px, calc(100% - 24px));
-    color: #172033;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(94, 113, 138, 0.34);
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 18px 44px rgba(20, 32, 50, 0.22);
+    box-shadow: 0 18px 44px var(--shadow);
   }
   .preview-head {
     display: flex;
@@ -303,16 +303,16 @@
     gap: 12px;
     align-items: start;
     padding: 12px 12px 10px;
-    border-bottom: 1px solid #dce4ef;
+    border-bottom: 1px solid var(--border);
   }
   .preview-head h2 {
     margin: 0 0 2px;
-    color: #111827;
+    color: var(--text);
     font-size: 18px;
     line-height: 1.22;
   }
   .preview-head code {
-    color: #5b6678;
+    color: var(--muted);
     font-size: 12px;
     overflow-wrap: anywhere;
   }
@@ -322,31 +322,31 @@
     gap: 6px;
   }
   .preview .btn {
-    background: #eef3f8;
-    border-color: #cbd6e4;
-    color: #172033;
+    background: var(--panel-2);
+    border-color: var(--border);
+    color: var(--text);
   }
   .preview .btn:hover {
-    border-color: #16836f;
+    border-color: var(--accent);
   }
   .preview-body {
     min-height: 0;
     overflow: auto;
     padding: 6px 14px 14px;
-    color: #172033;
+    color: var(--text);
     font-size: 14px;
     line-height: 1.45;
   }
   .preview-body :global(h1),
   .preview-body :global(h2),
   .preview-body :global(h3) {
-    color: #111827;
+    color: var(--text);
   }
   .preview-body :global(a.wikilink),
   .preview-body :global(a.rellink) {
-    color: #006fc9;
+    color: var(--accent-2);
     text-decoration: none;
-    border-bottom: 1px dotted #006fc9;
+    border-bottom: 1px dotted var(--accent-2);
     cursor: pointer;
   }
   .preview-body :global(a.wikilink:hover),

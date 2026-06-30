@@ -1,15 +1,29 @@
 :root {
-  /* palette — surfaces */
+  /* metrics + typography — theme-independent */
+  --radius: 6px;
+  --ctrl-h: 26px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-sans);
+}
+
+/* Dark theme — the default (also applied when no data-theme is set). */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  /* surfaces */
   --bg: #0f1115;
   --panel: #161922;
   --panel-2: #1b1f2a;
   --term-bg: #0b0d12;
+  --term-fg: #d8dee9;
   --border: #262b38;
   --active: #20283a;
-  /* palette — text */
+  /* text */
   --text: #d8dee9;
   --muted: #8a93a6;
-  /* palette — accents */
+  --th-text: #b7c0d2; /* table header text */
+  /* accents */
   --accent: #4ec9a8;
   --accent-fg: #03110d; /* text on an accent fill */
   --accent-2: #6aa3ff;
@@ -17,10 +31,45 @@
   --amber-bg: #2a2418;
   --accent-bg: #15281f;
   --warn: #e06c75;
-  /* metrics */
-  --radius: 6px;
-  --ctrl-h: 26px;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --danger: #ff8a8a; /* error text */
+  --danger-bg: #4a1d1d; /* error banner fill */
+  --danger-border: #7a2a2a;
+  /* hairlines + zebra overlays + elevation (tuned per theme so light mode isn't washed out) */
+  --row-alt: rgba(255, 255, 255, 0.018);
+  --col-sep: rgba(255, 255, 255, 0.035);
+  --shadow: rgba(0, 0, 0, 0.45);
+}
+
+/* Light theme. */
+[data-theme="light"] {
+  color-scheme: light;
+  /* surfaces */
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --panel-2: #eceef2;
+  --term-bg: #0b0d12; /* terminal stays dark — ANSI output is tuned for a dark background */
+  --term-fg: #d8dee9;
+  --border: #d5d9e0;
+  --active: #dce6f6;
+  /* text */
+  --text: #1c2230;
+  --muted: #5d6573;
+  --th-text: #38414f;
+  /* accents */
+  --accent: #178a6b;
+  --accent-fg: #ffffff;
+  --accent-2: #2563c9;
+  --amber: #8a5a12;
+  --amber-bg: #f7eed8;
+  --accent-bg: #e2f2eb;
+  --warn: #c0392b;
+  --danger: #c0392b;
+  --danger-bg: #fdecea;
+  --danger-border: #f0b4b0;
+  /* hairlines + zebra overlays + elevation */
+  --row-alt: rgba(0, 0, 0, 0.022);
+  --col-sep: rgba(0, 0, 0, 0.05);
+  --shadow: rgba(0, 0, 0, 0.14);
 }
 
 /* uniform controls — used across the top bar and elsewhere */
@@ -226,18 +275,18 @@ body {
 }
 .grid th + th,
 .grid td + td {
-  border-left: 1px solid rgba(255, 255, 255, 0.035);
+  border-left: 1px solid var(--col-sep);
 }
 .grid th {
   background: var(--panel-2);
-  color: #b7c0d2;
+  color: var(--th-text);
   font-weight: 600;
   position: sticky;
   top: 0;
   z-index: 1;
 }
 .grid tbody tr:nth-child(even) td {
-  background: rgba(255, 255, 255, 0.018);
+  background: var(--row-alt);
 }
 .grid tbody tr:hover td {
   background: var(--active);
@@ -259,7 +308,7 @@ body {
 }
 
 .banner {
-  background: #2a2418;
+  background: var(--amber-bg);
   border: 1px solid var(--amber);
   color: var(--amber);
   border-radius: 6px;
@@ -318,7 +367,7 @@ body {
   border-radius: 6px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  color: #ff8a8a;
+  color: var(--danger);
   font-size: 12px;
   white-space: pre-wrap;
 }
@@ -362,13 +411,13 @@ body {
 .overview td + td,
 .hdoc th + th,
 .hdoc td + td {
-  border-left: 1px solid rgba(255, 255, 255, 0.035);
+  border-left: 1px solid var(--col-sep);
 }
 .body th,
 .overview th,
 .hdoc th {
   background: var(--panel-2);
-  color: #b7c0d2;
+  color: var(--th-text);
   font-weight: 600;
 }
 .body tr:last-child td,
