@@ -26,7 +26,7 @@
 
 <div class="editor" class:full={editor.mode !== 'form'}>
   {#if editor.mode === 'document'}
-    <Wysiwyg content={body} {links} onchange={setBody} />
+    <Wysiwyg content={body} {links} sourceSlug={slug} onchange={setBody} />
   {:else if editor.mode === 'form'}
     <FormBody {body} {schema} {slug} {links} onchange={setBody} />
   {:else}

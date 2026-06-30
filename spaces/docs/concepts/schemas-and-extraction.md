@@ -29,8 +29,8 @@ At build time the extractor matches `**Label:**` lines to schema fields (case-in
 against its values, else string. A missing declared field becomes a validation warning (surfaced as
 the collection's "issues" count).
 
-Typed values land as real columns in [[internals/projections-and-db|`db/<collection>.json`]], which
-is what makes [[guides/querying|querying]] sort numerically and filter by date/number.
+Typed values land as real columns in [`db/<collection>.json`](../internals/projections-and-db.md), which
+is what makes [querying](../guides/querying.md) sort numerically and filter by date/number.
 
 ## Two layers
 

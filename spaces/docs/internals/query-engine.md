@@ -5,7 +5,7 @@
 
 `query.ts` is a ~110-line pure function — no dependency, browser-safe — and it's the *only* query
 implementation. The CLI op `grove query run` and the FE collection-page table both call it, so they
-share exact semantics ([[concepts/the-five-faces|build once]]).
+share exact semantics ([build once](../concepts/the-five-faces.md)).
 
 ```ts
 runQuery(rows, { where, sort, select, limit, agg, groupBy }): QueryResult
@@ -17,9 +17,9 @@ runQuery(rows, { where, sort, select, limit, agg, groupBy }): QueryResult
 - `select` / `limit` — applied to the returned rows; `count` still reflects the full match.
 - `agg` — `count · sum · avg · min · max`, optionally `groupBy`.
 
-Rows are just the [[internals/projections-and-db|projection]] objects, so the typed columns from
+Rows are just the [projection](projections-and-db.md) objects, so the typed columns from
 extraction make numeric/date comparisons work without parsing at query time.
 
 It's deliberately minimal — AND-only, no joins. If richer analytics are ever needed, the op
 signature can front a heavier engine without changing callers. Why not an off-the-shelf dataframe
-lib? One shared engine across faces beats a second, FE-only query path. See [[guides/querying]].
+lib? One shared engine across faces beats a second, FE-only query path. See [querying](../guides/querying.md).

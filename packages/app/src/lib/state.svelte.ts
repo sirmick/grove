@@ -1,7 +1,7 @@
 // Open-views (tabs) model — replaces single-nav. Tabs are the reconcile targets for live updates.
 import { currentSpace } from './space.svelte'
 
-export type TabKind = 'collection' | 'doc' | 'search' | 'project' | 'log' | 'file'
+export type TabKind = 'collection' | 'doc' | 'search' | 'project' | 'log' | 'links' | 'file'
 
 export interface Tab {
   id: string
@@ -80,6 +80,10 @@ export function openProject() {
 
 export function openLog() {
   openTab('log', 'log', 'Log')
+}
+
+export function openLinks() {
+  openTab('links', 'links', 'Links')
 }
 
 export function activeTab(): Tab | undefined {

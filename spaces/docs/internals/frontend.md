@@ -4,7 +4,7 @@
 **Order:** 8
 
 `@grove/app` is Svelte 5 (runes) + Vite. It calls only `grove.*` — a transport-agnostic client —
-and stays a thin view over the [[internals/core-engine|engine]].
+and stays a thin view over the [engine](core-engine.md).
 
 ## The client seam
 
@@ -15,7 +15,7 @@ same engine as the CLI. The corpus is seeded from a bundled snapshot and refresh
 
 ## State (runes)
 
-- `drafts.svelte` — the OPFS [[concepts/drafts-respins-and-the-log|draft]] layer.
+- `drafts.svelte` — the OPFS [draft](../concepts/drafts-respins-and-the-log.md) layer.
 - `sync.svelte` — the live loop: SSE/poll → reconcile against `meta.json`; `commitAll` POSTs the
   change set and handles `{ ok, conflicts }`.
 - `state.svelte` — in-app tabs (the reconcile targets).
@@ -29,4 +29,4 @@ view/editor · the **Project** page (global meta + the log) · the xterm termina
 
 `CodeEditor` wraps CodeMirror 6 (markdown/yaml source). `Wysiwyg` wraps **TipTap** with
 `tiptap-markdown` round-trip and a formatting bar + `[[wikilink]]` picker. `RecordEditor` switches
-**Document / Form / Source** over one markdown body so the views stay in sync ([[guides/editing]]).
+**Document / Form / Source** over one markdown body so the views stay in sync ([editing](../guides/editing.md)).

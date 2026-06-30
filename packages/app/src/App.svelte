@@ -7,6 +7,7 @@
   import HelpPanel from './lib/help/HelpPanel.svelte'
   import Icon from './lib/icons/Icon.svelte'
   import CollectionPage from './lib/overview/CollectionPage.svelte'
+  import LinksView from './lib/overview/LinksView.svelte'
   import LogView from './lib/overview/LogView.svelte'
   import ProjectPage from './lib/overview/ProjectPage.svelte'
   import SearchResults from './lib/search/SearchResults.svelte'
@@ -81,6 +82,8 @@
               <ProjectPage />
             {:else if active.kind === 'log'}
               <LogView />
+            {:else if active.kind === 'links'}
+              <LinksView />
             {:else}
               <SearchResults />
             {/if}
@@ -114,15 +117,15 @@
   .authbar {
     flex: none;
     padding: 6px 12px;
-    background: #5a1d1d;
-    color: #ffd9d9;
-    border-bottom: 1px solid #7a2a2a;
+    background: var(--danger-bg);
+    color: var(--danger);
+    border-bottom: 1px solid var(--danger-border);
     font-size: 12px;
     line-height: 1.5;
   }
   .authbar code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    background: rgba(255, 255, 255, 0.12);
+    font-family: var(--font-mono);
+    background: var(--danger-border);
     padding: 0 4px;
     border-radius: 3px;
   }

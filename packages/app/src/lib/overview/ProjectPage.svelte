@@ -1,10 +1,12 @@
 <script lang="ts">
+  import type { OutputArtifact } from '@grove/core'
   import { copyText } from '../clipboard'
+  import { syncState } from '../db/sync.svelte'
   import MetaEditor from '../editor/MetaEditor.svelte'
   import { diagrams } from '../diagrams'
   import { grove } from '../grove/client'
   import { renderMarkdown } from '../md'
-  import { openLog } from '../state.svelte'
+  import { openLinks, openLog } from '../state.svelte'
   import { parseActions } from './actions'
 
   // The space root, as a sibling above the collections — project-level overview + global _grove meta.
@@ -19,10 +21,35 @@
 
   let selected = $state<string | null>(null)
   let copied = $state<string | null>(null)
+  let outputs = $state<OutputArtifact[]>([])
   let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+  $effect(() => {
+    void syncState.builtAt
+    let alive = true
+    fetch('/db/meta.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((meta: { outputs?: OutputArtifact[] } | null) => {
+        if (!alive) return
+        outputs = Array.isArray(meta?.outputs) ? meta.outputs : []
+      })
+      .catch(() => {
+        if (alive) outputs = []
+      })
+    return () => {
+      alive = false
+    }
+  })
+
   function copyRequest(title: string, request: string) {
     copyText(request)
     copied = title
+    clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => (copied = null), 1500)
+  }
+  function copyOutputPath(o: OutputArtifact) {
+    copyText(o.path)
+    copied = `output:${o.name}`
     clearTimeout(copiedTimer)
     copiedTimer = setTimeout(() => (copied = null), 1500)
   }
@@ -58,9 +85,31 @@
     </section>
   {/if}
 
+  {#if outputs.length}
+    <section class="outputs">
+      <h3>Outputs <span class="muted">· respin artifacts</span></h3>
+      <ul class="outputlist">
+        {#each outputs as o (o.name)}
+          <li>
+            <div class="ahead">
+              <span class="atitle">{o.label}</span>
+              <span class="badge" title="generated notes">{o.notes} notes</span>
+              <span class="badge" title="generated files">{o.files} files</span>
+              <button class="copy" onclick={() => copyOutputPath(o)}>
+                {copied === `output:${o.name}` ? 'Copied ✓' : 'Copy path'}
+              </button>
+            </div>
+            <div class="opath">{o.path}</div>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
   <section>
     <h3>History</h3>
     <p><button class="linkish" onclick={openLog}>Open the respin log →</button></p>
+    <p><button class="linkish" onclick={openLinks}>Open the link map →</button></p>
   </section>
 
   <section class="metasec">
@@ -97,7 +146,8 @@
     font-weight: 600;
   }
 
-  .actionlist {
+  .actionlist,
+  .outputlist {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -105,7 +155,8 @@
     flex-direction: column;
     gap: 8px;
   }
-  .actionlist li {
+  .actionlist li,
+  .outputlist li {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel-2);
@@ -150,5 +201,12 @@
   }
   .areq :global(p) {
     margin: 4px 0 0;
+  }
+  .opath {
+    margin-top: 4px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    overflow-wrap: anywhere;
   }
 </style>

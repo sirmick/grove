@@ -19,7 +19,7 @@ commitChange(spaceDir, id)   # prepare generated files → commit → build (gat
    main untouched.
 3. Merge the branch into the space's branch. A conflict aborts the merge and reports the conflicted
    paths.
-4. On a clean build + merge, [[internals/projections-and-db|respin]] main and advance HEAD.
+4. On a clean build + merge, [respin](projections-and-db.md) main and advance HEAD.
 5. Remove the worktree and branch.
 
 Plain `git commit` uses the same README renderer from the repository hook: after the commit lands,
@@ -32,5 +32,5 @@ helper (begin → write all → commit) the app and `/commit` use. Simpler Grove
 place and run the generated README/respin path directly; hook installation is only required for
 plain Git commits made outside Grove.
 
-This is the "polished change" path; see [[guides/the-commit-cycle]] and
-[[concepts/drafts-respins-and-the-log]].
+This is the "polished change" path; see [the-commit-cycle](../guides/the-commit-cycle.md) and
+[drafts-respins-and-the-log](../concepts/drafts-respins-and-the-log.md).

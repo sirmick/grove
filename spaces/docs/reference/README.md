@@ -8,7 +8,7 @@ the AI's system prompt is generated from. Try:
 - `mutates = true` — every command that changes the space.
 - `namespace = records` — the record verbs.
 
-Each command exists at every [[concepts/the-five-faces|face]] (JS, CLI, MCP, HTTP, FE); the body
+Each command exists at every [face](../concepts/the-five-faces.md) (JS, CLI, MCP, HTTP, FE); the body
 shows the CLI form.
 
 ## Data

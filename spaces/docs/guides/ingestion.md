@@ -3,7 +3,7 @@
 **Order:** 7
 
 Ingestion turns a rough source (a document, a URL; PDF later) into a structured record by running it
-through Claude with the target collection's [[guides/collections-and-schemas|schema]] as the output
+through Claude with the target collection's [schema](collections-and-schemas.md) as the output
 shape, then landing a provenance-stamped draft.
 
 ```
@@ -26,7 +26,7 @@ grove records promote --slug papers/the-article
 ```
 
 Promotion flips the status to `verified` in place, so the
-[[concepts/slugs-and-wikilinks|slug and any links]] stay stable. In the app, the **Promote** button
+[slug and any links](../concepts/slugs-and-wikilinks.md) stay stable. In the app, the **Promote** button
 does the same.
 
-> The Claude call needs `ANTHROPIC_API_KEY` (server-side only). See [[internals/architecture]].
+> The Claude call needs `ANTHROPIC_API_KEY` (server-side only). See [architecture](../internals/architecture.md).

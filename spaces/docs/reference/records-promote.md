@@ -5,6 +5,6 @@
 **Mutates:** yes
 
 Flip a review draft (`_status: review`) to `verified`, in place — the
-[[concepts/slugs-and-wikilinks|slug and links stay stable]]. See [[guides/ingestion]].
+[slug and links stay stable](../concepts/slugs-and-wikilinks.md). See [ingestion](../guides/ingestion.md).
 
 `grove records promote --slug papers/the-article`

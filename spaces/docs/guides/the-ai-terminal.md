@@ -3,7 +3,7 @@
 **Order:** 8
 
 The bottom pane is a real shell, opened **in the space** with `grove` (and `ai`) on PATH. You can run
-any [[guides/using-the-cli|grove command]] immediately, or hand the space to an AI assistant.
+any [grove command](using-the-cli.md) immediately, or hand the space to an AI assistant.
 
 ## `ai`
 
@@ -14,7 +14,7 @@ you want the selected backend's unsafe permission-bypass mode (`codex
 --dangerously-bypass-approvals-and-sandbox`, or `claude --dangerously-skip-permissions`).
 
 - **System prompt** — how grove works and its full command surface, **generated from the
-  [[internals/ops-registry|ops registry]]** so it never drifts from the real CLI.
+  [ops registry](../internals/ops-registry.md)** so it never drifts from the real CLI.
 - **Project prompt** — `_grove/prompt.md` for this space, **editable on the Project page**. It
   describes this particular knowledge base.
 

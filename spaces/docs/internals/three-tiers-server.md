@@ -11,13 +11,13 @@ In multi-space mode, it scans selectable spaces from `GROVE_SPACES_ROOTS`, defau
 ## Read tier (the repo is the API)
 
 - `GET /corpus.json` — the raw `{ path → contents }` map (the FE computes over it).
-- `GET /db/*` — the derived [[internals/projections-and-db|projections]] + the meta journal.
+- `GET /db/*` — the derived [projections](projections-and-db.md) + the meta journal.
 - `GET /events` — an SSE change-feed; a "changed" ping per respin drives the FE reconcile.
 
 ## Author tier (writes = git)
 
 - `PUT /incoming/*` — atomic drop of a single file; commits in place, respins, broadcasts.
-- `POST /commit` — apply a change set as a [[internals/worktree-transactions|worktree transaction]];
+- `POST /commit` — apply a change set as a [worktree transaction](worktree-transactions.md);
   returns `{ ok, headCommit }` or `409 { conflicts | error }` (drafts kept).
 
 Both guard paths to the space dir and to `.md`/`.yaml` only.
@@ -26,7 +26,7 @@ Both guard paths to the space dir and to `.md`/`.yaml` only.
 
 - `POST /exec` — run the grove CLI, capture stdout/exit (for automation).
 - `WS /pty` — an interactive terminal via `node-pty`, opened **in the space** with `grove`/`ai` on
-  PATH ([[guides/the-ai-terminal]]).
+  PATH ([the-ai-terminal](../guides/the-ai-terminal.md)).
 
 In normal dev, Vite serves the app and proxies all of the above to the server (same-origin, no
 CORS). In debug mode (`./run.sh` or `GROVE_DEBUG=1`), the grove server mounts Vite as middleware so

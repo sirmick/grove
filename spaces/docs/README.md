@@ -6,7 +6,7 @@ This space **is** grove's documentation — written as a grove space, so the doc
 they describe. Browse it like any space: the tree on the left, a page in the middle, the terminal
 below.
 
-- [[guides/getting-started]] — install, run, and take the tour.
+- [getting-started](guides/getting-started.md) — install, run, and take the tour.
 - **guides** — how to use grove day to day.
 - **concepts** — the model and vocabulary.
 - **internals** — how grove is built.
@@ -17,13 +17,14 @@ same draft → commit → respin cycle as any other space.
 
 ## Last Save
 
-2026-06-22T19:50:13.963Z
+2026-06-30T01:26:22.392Z
 
 ## Recent Changes
 
 | Saved | Commit | Message | Changes |
 | --- | --- | --- | --- |
-| 2026-06-22T19:50:13.963Z | current save | Read AI launch config from spaces | M guides/the-ai-terminal.md |
+| 2026-06-30T01:26:22.392Z | current save | Add Obsidian output and link map | M concepts/drafts-respins-and-the-log.md<br>M concepts/slugs-and-wikilinks.md<br>M guides/editing.md<br>M guides/getting-started.md<br>M internals/projections-and-db.md |
+| 2026-06-22T12:50:13-07:00 | a4a59e30 | Read AI launch config from spaces | M README.md<br>M guides/the-ai-terminal.md |
 | 2026-06-16T16:08:05-07:00 | 6eaa1c48 | improve grove debug and commit flows | M README.md<br>M guides/getting-started.md<br>M guides/the-ai-terminal.md<br>M guides/the-commit-cycle.md<br>M guides/using-the-cli.md<br>M internals/three-tiers-server.md<br>+1 more |
 | 2026-06-16T09:19:39-07:00 | dc119632 | unify grove commit lifecycle | A README.md<br>M _grove/prompt.md<br>A concepts/README.md<br>M concepts/drafts-respins-and-the-log.md<br>A guides/README.md<br>M guides/the-ai-terminal.md<br>+6 more |
 | 2026-06-15T14:47:13-07:00 | c0c3c2b2 | Add selectable AI launcher and external space roots | M guides/the-ai-terminal.md<br>M internals/three-tiers-server.md<br>M reference/ai-prompt.md |

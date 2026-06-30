@@ -16,14 +16,14 @@
 - `read.ts` — `buildTree`, `recordRows`, `recordRead`, `collectionDetail`, `resolveSchema`,
   `allLinks`, `backlinks`, `orphans`, `searchDocs`, `spaceWarnings`.
 - `edit.ts` — `composeMarkdown`, `composeFile`, `proseOf`, `slugify`, `collectionScaffold`.
-- `query.ts` — the pure [[internals/query-engine|query engine]].
+- `query.ts` — the pure [query engine](query-engine.md).
 - `types.ts` — the shared contracts (`SchemaHint`, `RecordRow`, `TreeNode`, `DbMeta`, …).
 
 ## Node module (`node.ts`)
 
 `loadCorpusFromDir`, `buildSpace` (the respin), `watchSpace` (chokidar), the git helpers
 (`ensureGitRepo`, `gitCommitAll`, `headCommit`), and the
-[[internals/worktree-transactions|change transaction]].
+[change transaction](worktree-transactions.md).
 
 Everything downstream — CLI, server, app — depends only on these; the engine has no framework
 knowledge.

@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -16,11 +17,12 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chokidar from 'chokidar'
-import type { Corpus } from './corpus'
+import { type Corpus, baseName, isUnderGrove } from './corpus'
+import { normalizeWikilinksToMarkdown } from './parse'
 import { buildProjections } from './project'
-import { spaceWarnings } from './read'
+import { allRecordSlugs, spaceWarnings } from './read'
 import { renderReadmeFiles } from './render'
-import type { DbMeta, LogEntry, RespinRecord } from './types'
+import type { DbMeta, LogEntry, OutputArtifact, RespinRecord } from './types'
 
 export function loadCorpusFromDir(dir: string): Corpus {
   const corpus: Corpus = {}
@@ -42,19 +44,41 @@ function spawnOutput(e: unknown): string | null {
   return typeof out === 'string' ? out : null
 }
 
+function errorMessage(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message
+  return String(e)
+}
+
+function commandOutput(e: unknown, stream: 'stdout' | 'stderr'): string {
+  const err = e as {
+    stdout?: Buffer | string
+    stderr?: Buffer | string
+    output?: unknown[]
+  }
+  const value = err[stream] ?? err.output?.[stream === 'stdout' ? 1 : 2]
+  if (Buffer.isBuffer(value)) return value.toString('utf8').trim()
+  return typeof value === 'string' ? value.trim() : ''
+}
+
 function gitOutput(args: string[], cwd: string): string {
-  // Discard stderr: failures are expected on probes (rev-parse/check-ignore outside a repo) and are
-  // handled via catch + fallbacks; we don't want git's "fatal: …" leaking to the CLI/terminal.
+  // Probe failures (rev-parse/check-ignore outside a repo) are caught by callers. When an
+  // operation is not a probe, include stderr so CLI/MCP callers get a useful top-level error.
   try {
     return execFileSync('git', args, {
       cwd,
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
   } catch (e) {
     const out = spawnOutput(e)
     if (out !== null) return out
-    throw e
+    const status = (e as { status?: number }).status
+    const stderr = commandOutput(e, 'stderr')
+    const stdout = commandOutput(e, 'stdout')
+    const detail = stderr || stdout || errorMessage(e)
+    throw new Error(
+      `git ${args.join(' ')} failed${status === undefined ? '' : ` with status ${status}`}: ${detail}`,
+    )
   }
 }
 
@@ -346,6 +370,71 @@ function writeTextAtomic(file: string, content: string) {
   renameSync(tmp, file)
 }
 
+const OBSIDIAN_OUTPUT_PATH = 'db/obsidian'
+
+function isObsidianMarkdown(rel: string): boolean {
+  return rel.endsWith('.md') && !isUnderGrove(rel)
+}
+
+function isAuthoredRecordMarkdown(rel: string): boolean {
+  return rel.endsWith('.md') && !isUnderGrove(rel) && baseName(rel) !== 'README.md'
+}
+
+function insideDir(root: string, target: string): boolean {
+  return target === root || target.startsWith(root + sep)
+}
+
+function recordSlugSet(corpus: Corpus): Set<string> {
+  return new Set(allRecordSlugs(corpus))
+}
+
+function normalizeMarkdownLinksInSpace(spaceDir: string): string[] {
+  const corpus = loadCorpusFromDir(spaceDir)
+  const knownSlugs = recordSlugSet(corpus)
+  const changed: string[] = []
+  for (const [rel, raw] of Object.entries(corpus)) {
+    if (!isAuthoredRecordMarkdown(rel)) continue
+    const normalized = normalizeWikilinksToMarkdown(rel.slice(0, -3), raw, knownSlugs)
+    if (normalized === raw) continue
+    writeTextAtomic(join(spaceDir, rel), normalized)
+    changed.push(rel)
+  }
+  return changed
+}
+
+function writeObsidianVault(spaceDir: string, corpus: Corpus): OutputArtifact {
+  const vaultDir = join(spaceDir, OBSIDIAN_OUTPUT_PATH)
+  const knownSlugs = recordSlugSet(corpus)
+  rmSync(vaultDir, { recursive: true, force: true })
+  mkdirSync(vaultDir, { recursive: true })
+
+  writeJson(join(vaultDir, '.obsidian', 'app.json'), {
+    alwaysUpdateLinks: true,
+    newFileLocation: 'current',
+    useMarkdownLinks: false,
+  })
+
+  let notes = 0
+  for (const rel of Object.keys(corpus).filter(isObsidianMarkdown).sort()) {
+    const target = resolve(vaultDir, rel)
+    if (!insideDir(vaultDir, target)) throw new Error(`invalid Obsidian output path: ${rel}`)
+    writeTextAtomic(
+      target,
+      normalizeWikilinksToMarkdown(rel.slice(0, -3), corpus[rel] ?? '', knownSlugs),
+    )
+    notes += 1
+  }
+
+  return {
+    name: 'obsidian',
+    label: 'Obsidian vault',
+    kind: 'obsidian-vault',
+    path: OBSIDIAN_OUTPUT_PATH,
+    files: notes + 1,
+    notes,
+  }
+}
+
 export interface PrepareCommitOptions {
   currentChanged?: LogEntry['changed']
   history?: LogEntry[]
@@ -357,6 +446,7 @@ export function prepareCommit(
   options: PrepareCommitOptions = {},
 ): string[] {
   const savedAt = new Date().toISOString()
+  const normalized = normalizeMarkdownLinksInSpace(spaceDir)
   const corpus = loadCorpusFromDir(spaceDir)
   const files = renderReadmeFiles(corpus, {
     savedAt,
@@ -369,7 +459,7 @@ export function prepareCommit(
     history: options.history ?? gitLog(spaceDir, 9),
   })
   for (const [rel, content] of Object.entries(files)) writeTextAtomic(join(spaceDir, rel), content)
-  const rels = Object.keys(files)
+  const rels = [...new Set([...normalized, ...Object.keys(files)])]
   if (rels.length) git(['add', '--', ...rels], spaceDir)
   return rels
 }
@@ -455,6 +545,7 @@ export function buildSpace(spaceDir: string): DbMeta {
   }
   writeJson(join(db, 'links.json'), proj.links)
   writeJson(join(db, 'search.json'), { docs: proj.searchDocs })
+  const outputs = [writeObsidianVault(spaceDir, corpus)]
 
   const respin: RespinRecord = {
     status: 'pass',
@@ -463,6 +554,7 @@ export function buildSpace(spaceDir: string): DbMeta {
     durationMs: Date.now() - t0,
     warnings: spaceWarnings(corpus),
     error: null,
+    outputs,
   }
   const meta: DbMeta = {
     headCommit: head,
@@ -470,6 +562,7 @@ export function buildSpace(spaceDir: string): DbMeta {
     respin,
     log: gitLog(spaceDir, 50),
     collections: proj.collectionEtags,
+    outputs,
   }
   appendRespin(db, respin)
   writeJson(join(db, 'meta.json'), meta) // written last
@@ -501,14 +594,14 @@ export function gitCommitAll(dir: string, message: string): string {
   if (isSpace) {
     try {
       prepareCommit(dir, message)
-    } catch {
-      // Keep the old "commit what we can" behavior for direct helpers. The build-gated transaction
-      // path still treats preparation/build failures as errors before merging.
+    } catch (e) {
+      throw new Error(`failed to prepare Grove commit artifacts in ${dir}: ${errorMessage(e)}`)
     }
   }
   // For an in-repo space, scope add/commit to its subpath so it never sweeps up unrelated changes
   // elsewhere in the enclosing repo.
   const scope = managedByEnclosing(dir) ? ['--', '.'] : []
+  let commitHead = ''
   try {
     const noHooks = join(tmpdir(), 'grove-no-hooks')
     mkdirSync(noHooks, { recursive: true })
@@ -527,17 +620,20 @@ export function gitCommitAll(dir: string, message: string): string {
       ],
       dir,
     )
-  } catch {
-    // nothing to commit / git error
+    commitHead = headCommit(dir)
+  } catch (e) {
+    throw new Error(`failed to create Grove git commit in ${dir}: ${errorMessage(e)}`)
   }
   if (isSpace) {
     try {
       buildSpace(dir)
-    } catch {
-      // post-commit hooks cannot reject an already-created commit either; keep this helper lenient.
+    } catch (e) {
+      throw new Error(
+        `Grove git commit ${commitHead || '(unknown)'} was created, but respin failed in ${dir}: ${errorMessage(e)}`,
+      )
     }
   }
-  return headCommit(dir)
+  return commitHead || headCommit(dir)
 }
 
 // ── Change transactions (mechanism a): isolate edits in a git worktree, validate the build

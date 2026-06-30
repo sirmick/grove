@@ -6,6 +6,6 @@
 
 Commit a change started with `grove change begin`: generate README files, build the worktree as a
 gate, then merge → respin only if clean. Pairs with `change begin` and `change abort`. See
-[[internals/worktree-transactions]].
+[worktree-transactions](../internals/worktree-transactions.md).
 
 `grove change commit --id <id> --message "add events collection"`

@@ -18,6 +18,7 @@
     Folder,
     FolderOpen,
     Link,
+    Moon,
     PanelBottom,
     PanelLeft,
     Pencil,
@@ -26,8 +27,10 @@
     Save,
     ScrollText,
     Search,
+    Sun,
     Table2,
     Terminal,
+    X,
   } from '@lucide/svelte'
   import type { Component } from 'svelte'
 
@@ -50,6 +53,7 @@
     folder: Folder,
     'folder-open': FolderOpen,
     link: Link,
+    moon: Moon,
     'panel-bottom': PanelBottom,
     'panel-left': PanelLeft,
     pencil: Pencil,
@@ -58,8 +62,10 @@
     save: Save,
     'scroll-text': ScrollText,
     search: Search,
+    sun: Sun,
     'table-2': Table2,
     terminal: Terminal,
+    x: X,
   }
 
   const Cmp = $derived(map[name])

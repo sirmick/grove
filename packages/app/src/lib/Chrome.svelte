@@ -5,6 +5,7 @@
   import Icon from './icons/Icon.svelte'
   import { spaceState, switchSpace } from './space.svelte'
   import { showSearch } from './state.svelte'
+  import { theme, toggleTheme } from './theme.svelte'
   import { toggleTree } from './ui.svelte'
   import { VERSION } from './version'
 
@@ -55,6 +56,12 @@
       </select>
     {/if}
     <span class="grow"></span>
+    <button
+      class="btn icon"
+      title={theme.current === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      onclick={toggleTheme}>
+      <Icon name={theme.current === 'dark' ? 'sun' : 'moon'} size={15} />
+    </button>
     <button class="btn icon" title="Screenshot → PNG" onclick={screenshot}>
       <Icon name="camera" size={15} />
     </button>

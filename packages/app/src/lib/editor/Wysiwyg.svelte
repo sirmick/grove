@@ -2,9 +2,9 @@
   // Rich markdown editor — TipTap (ProseMirror) with markdown round-trip via tiptap-markdown.
   // Pattern borrowed from wash-edit's wysiwyg.ts: the on-open markdown is loaded with
   // setContent (NOT the constructor `content`) because tiptap-markdown's parser hooks onto
-  // setContent in TipTap v3. Wikilinks `[[slug]]` aren't markdown syntax, so they survive
-  // round-trip as literal text. The formatting bar + the wikilink picker live here (Source
-  // view stays bare markdown).
+  // setContent in TipTap v3. The formatting bar + internal-link picker live here (Source view
+  // stays bare markdown).
+  import { markdownHrefForSlug } from '@grove/core'
   import { Editor } from '@tiptap/core'
   import StarterKit from '@tiptap/starter-kit'
   import { onMount } from 'svelte'
@@ -13,8 +13,10 @@
   let {
     content = '',
     links = [],
+    sourceSlug = '',
     onchange,
-  }: { content?: string; links?: string[]; onchange?: (md: string) => void } = $props()
+  }: { content?: string; links?: string[]; sourceSlug?: string; onchange?: (md: string) => void } =
+    $props()
 
   let host: HTMLDivElement
   let editor = $state<Editor>()
@@ -28,6 +30,9 @@
     void tick
     return editor?.isActive(name, attrs) ?? false
   }
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escapeAttr = (s: string) => escapeHtml(s).replace(/"/g, '&quot;')
 
   onMount(() => {
     const ed = new Editor({
@@ -62,8 +67,16 @@
     if (editor) fn(editor.chain().focus()).run()
   }
 
-  function insertWikilink() {
-    if (pick) editor?.chain().focus().insertContent(`[[${pick}]] `).run()
+  function insertInternalLink() {
+    if (pick) {
+      const label = pick.split('/').pop() || pick
+      const href = markdownHrefForSlug(sourceSlug, pick)
+      editor
+        ?.chain()
+        .focus()
+        .insertContent(`<a href="${escapeAttr(href)}">${escapeHtml(label)}</a> `)
+        .run()
+    }
     pick = ''
   }
 
@@ -96,8 +109,8 @@
     <span class="sep"></span>
     <button class="b" class:on={isOn('link')} title="Web link" onclick={setLink}>🔗</button>
     {#if links.length}
-      <select class="linksel" bind:value={pick} onchange={insertWikilink} title="Insert a [[wikilink]]">
-        <option value="">[[link]]…</option>
+      <select class="linksel" bind:value={pick} onchange={insertInternalLink} title="Insert an internal Markdown link">
+        <option value="">link…</option>
         {#each links as s (s)}<option value={s}>{s}</option>{/each}
       </select>
     {/if}
