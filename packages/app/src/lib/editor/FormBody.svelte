@@ -86,7 +86,14 @@
   {/if}
 
   <span class="muted bodylabel">body</span>
-  <Wysiwyg content={prose} {links} onchange={(md) => { prose = md; emit() }} />
+  <Wysiwyg
+    content={prose}
+    {links}
+    sourceSlug={slug}
+    onchange={(md) => {
+      prose = md
+      emit()
+    }} />
 </div>
 
 <style>

@@ -1,5 +1,6 @@
 import type { Corpus } from './corpus'
-import { collectionDetail, collectionPaths, recordRows } from './read'
+import { normalizeWikilinksToMarkdown } from './parse'
+import { allRecordSlugs, collectionDetail, collectionPaths, recordRows } from './read'
 import type { FieldHint, LogEntry, RecordRow } from './types'
 
 export interface ReadmeRenderContext {
@@ -13,6 +14,14 @@ const GENERATED =
 
 function section(src: string, fallback: string): string {
   return (src.trim() ? src : fallback).trimEnd()
+}
+
+function linkedSection(corpus: Corpus, srcSlug: string, src: string, fallback: string): string {
+  return normalizeWikilinksToMarkdown(
+    srcSlug,
+    section(src, fallback),
+    new Set(allRecordSlugs(corpus)),
+  )
 }
 
 function cell(value: unknown): string {
@@ -91,7 +100,12 @@ function dataTable(
 }
 
 export function renderSpaceReadme(corpus: Corpus, ctx: ReadmeRenderContext): string {
-  const overview = section(corpus['_grove/overview.md'] ?? '', '# Grove Space\n\nA grove space.')
+  const overview = linkedSection(
+    corpus,
+    'README',
+    corpus['_grove/overview.md'] ?? '',
+    '# Grove Space\n\nA grove space.',
+  )
   return `${GENERATED}
 
 ${overview}
@@ -112,7 +126,12 @@ export function renderCollectionReadme(
   _ctx: ReadmeRenderContext,
 ): string {
   const detail = collectionDetail(corpus, collection)
-  const overview = section(detail.overview, `# ${detail.name}\n\nA grove collection.`)
+  const overview = linkedSection(
+    corpus,
+    `${collection}/README`,
+    detail.overview,
+    `# ${detail.name}\n\nA grove collection.`,
+  )
   const fields = Object.entries(detail.schema.fields)
   const rows = recordRows(corpus, collection)
   return `${GENERATED}

@@ -9,6 +9,7 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs'
@@ -16,11 +17,12 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import chokidar from 'chokidar'
-import type { Corpus } from './corpus'
+import { type Corpus, baseName, isUnderGrove } from './corpus'
+import { normalizeWikilinksToMarkdown } from './parse'
 import { buildProjections } from './project'
-import { spaceWarnings } from './read'
+import { allRecordSlugs, spaceWarnings } from './read'
 import { renderReadmeFiles } from './render'
-import type { DbMeta, LogEntry, RespinRecord } from './types'
+import type { DbMeta, LogEntry, OutputArtifact, RespinRecord } from './types'
 
 export function loadCorpusFromDir(dir: string): Corpus {
   const corpus: Corpus = {}
@@ -368,6 +370,71 @@ function writeTextAtomic(file: string, content: string) {
   renameSync(tmp, file)
 }
 
+const OBSIDIAN_OUTPUT_PATH = 'db/obsidian'
+
+function isObsidianMarkdown(rel: string): boolean {
+  return rel.endsWith('.md') && !isUnderGrove(rel)
+}
+
+function isAuthoredRecordMarkdown(rel: string): boolean {
+  return rel.endsWith('.md') && !isUnderGrove(rel) && baseName(rel) !== 'README.md'
+}
+
+function insideDir(root: string, target: string): boolean {
+  return target === root || target.startsWith(root + sep)
+}
+
+function recordSlugSet(corpus: Corpus): Set<string> {
+  return new Set(allRecordSlugs(corpus))
+}
+
+function normalizeMarkdownLinksInSpace(spaceDir: string): string[] {
+  const corpus = loadCorpusFromDir(spaceDir)
+  const knownSlugs = recordSlugSet(corpus)
+  const changed: string[] = []
+  for (const [rel, raw] of Object.entries(corpus)) {
+    if (!isAuthoredRecordMarkdown(rel)) continue
+    const normalized = normalizeWikilinksToMarkdown(rel.slice(0, -3), raw, knownSlugs)
+    if (normalized === raw) continue
+    writeTextAtomic(join(spaceDir, rel), normalized)
+    changed.push(rel)
+  }
+  return changed
+}
+
+function writeObsidianVault(spaceDir: string, corpus: Corpus): OutputArtifact {
+  const vaultDir = join(spaceDir, OBSIDIAN_OUTPUT_PATH)
+  const knownSlugs = recordSlugSet(corpus)
+  rmSync(vaultDir, { recursive: true, force: true })
+  mkdirSync(vaultDir, { recursive: true })
+
+  writeJson(join(vaultDir, '.obsidian', 'app.json'), {
+    alwaysUpdateLinks: true,
+    newFileLocation: 'current',
+    useMarkdownLinks: false,
+  })
+
+  let notes = 0
+  for (const rel of Object.keys(corpus).filter(isObsidianMarkdown).sort()) {
+    const target = resolve(vaultDir, rel)
+    if (!insideDir(vaultDir, target)) throw new Error(`invalid Obsidian output path: ${rel}`)
+    writeTextAtomic(
+      target,
+      normalizeWikilinksToMarkdown(rel.slice(0, -3), corpus[rel] ?? '', knownSlugs),
+    )
+    notes += 1
+  }
+
+  return {
+    name: 'obsidian',
+    label: 'Obsidian vault',
+    kind: 'obsidian-vault',
+    path: OBSIDIAN_OUTPUT_PATH,
+    files: notes + 1,
+    notes,
+  }
+}
+
 export interface PrepareCommitOptions {
   currentChanged?: LogEntry['changed']
   history?: LogEntry[]
@@ -379,6 +446,7 @@ export function prepareCommit(
   options: PrepareCommitOptions = {},
 ): string[] {
   const savedAt = new Date().toISOString()
+  const normalized = normalizeMarkdownLinksInSpace(spaceDir)
   const corpus = loadCorpusFromDir(spaceDir)
   const files = renderReadmeFiles(corpus, {
     savedAt,
@@ -391,7 +459,7 @@ export function prepareCommit(
     history: options.history ?? gitLog(spaceDir, 9),
   })
   for (const [rel, content] of Object.entries(files)) writeTextAtomic(join(spaceDir, rel), content)
-  const rels = Object.keys(files)
+  const rels = [...new Set([...normalized, ...Object.keys(files)])]
   if (rels.length) git(['add', '--', ...rels], spaceDir)
   return rels
 }
@@ -477,6 +545,7 @@ export function buildSpace(spaceDir: string): DbMeta {
   }
   writeJson(join(db, 'links.json'), proj.links)
   writeJson(join(db, 'search.json'), { docs: proj.searchDocs })
+  const outputs = [writeObsidianVault(spaceDir, corpus)]
 
   const respin: RespinRecord = {
     status: 'pass',
@@ -485,6 +554,7 @@ export function buildSpace(spaceDir: string): DbMeta {
     durationMs: Date.now() - t0,
     warnings: spaceWarnings(corpus),
     error: null,
+    outputs,
   }
   const meta: DbMeta = {
     headCommit: head,
@@ -492,6 +562,7 @@ export function buildSpace(spaceDir: string): DbMeta {
     respin,
     log: gitLog(spaceDir, 50),
     collections: proj.collectionEtags,
+    outputs,
   }
   appendRespin(db, respin)
   writeJson(join(db, 'meta.json'), meta) // written last

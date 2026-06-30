@@ -4,6 +4,6 @@
 **Verb:** read
 **Mutates:** no
 
-Read one record by [[concepts/slugs-and-wikilinks|slug]] — its metadata, extracted fields, and body.
+Read one record by [slug](../concepts/slugs-and-wikilinks.md) — its metadata, extracted fields, and body.
 
 `grove records read --slug cities/tokyo`

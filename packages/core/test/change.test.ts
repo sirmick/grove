@@ -44,7 +44,7 @@ describe('change transaction (mechanism a)', () => {
     const before = headCommit(space)
     const res = commitChangeset(
       space,
-      { 'notes/from-change.md': '# From Change\n\n**Tags:** x\n\nhello\n' },
+      { 'notes/from-change.md': '# From Change\n\n**Tags:** x\n\nSee [[capitals/tokyo]].\n' },
       'grove: add note',
     )
 
@@ -52,7 +52,9 @@ describe('change transaction (mechanism a)', () => {
     expect(res.headCommit).not.toBe(before)
     expect(res.headCommit).toBe(headCommit(space))
     expect(existsSync(join(space, 'notes/from-change.md'))).toBe(true)
-    expect(readFileSync(join(space, 'notes/from-change.md'), 'utf8')).toContain('From Change')
+    expect(readFileSync(join(space, 'notes/from-change.md'), 'utf8')).toContain(
+      '[tokyo](../capitals/tokyo.md)',
+    )
     expect(readFileSync(join(space, 'README.md'), 'utf8')).toContain('## Recent Changes')
     expect(readFileSync(join(space, 'README.md'), 'utf8')).toContain('grove: add note')
     expect(readFileSync(join(space, 'notes/README.md'), 'utf8')).toContain(

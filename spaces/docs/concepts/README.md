@@ -2,11 +2,11 @@
 
 # Concepts
 
-The model and vocabulary behind grove: what a space and a [[concepts/the-model|collection]] are,
-how [[concepts/slugs-and-wikilinks|slugs and links]] work, how
-[[concepts/schemas-and-extraction|schemas]] turn prose into typed data, the
-[[concepts/drafts-respins-and-the-log|draft → commit → respin]] cycle, and the
-[[concepts/the-five-faces|one-registry-many-faces]] idea.
+The model and vocabulary behind grove: what a space and a [collection](the-model.md) are,
+how [slugs and links](slugs-and-wikilinks.md) work, how
+[schemas](schemas-and-extraction.md) turn prose into typed data, the
+[draft → commit → respin](drafts-respins-and-the-log.md) cycle, and the
+[one-registry-many-faces](the-five-faces.md) idea.
 
 ## Data
 
@@ -14,6 +14,6 @@ how [[concepts/slugs-and-wikilinks|slugs and links]] work, how
 | --- | ---: |
 | [Drafts, respins & the log](drafts-respins-and-the-log.md) | 4 |
 | [Schemas & extraction](schemas-and-extraction.md) | 3 |
-| [Slugs & wikilinks](slugs-and-wikilinks.md) | 2 |
+| [Slugs & links](slugs-and-wikilinks.md) | 2 |
 | [The five faces](the-five-faces.md) | 5 |
 | [The model](the-model.md) | 1 |

@@ -7,6 +7,7 @@
   import HelpPanel from './lib/help/HelpPanel.svelte'
   import Icon from './lib/icons/Icon.svelte'
   import CollectionPage from './lib/overview/CollectionPage.svelte'
+  import LinksView from './lib/overview/LinksView.svelte'
   import LogView from './lib/overview/LogView.svelte'
   import ProjectPage from './lib/overview/ProjectPage.svelte'
   import SearchResults from './lib/search/SearchResults.svelte'
@@ -81,6 +82,8 @@
               <ProjectPage />
             {:else if active.kind === 'log'}
               <LogView />
+            {:else if active.kind === 'links'}
+              <LinksView />
             {:else}
               <SearchResults />
             {/if}

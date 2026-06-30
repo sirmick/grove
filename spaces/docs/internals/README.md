@@ -2,11 +2,11 @@
 
 # Internals
 
-How grove is built. Start at [[internals/architecture]], then the
-[[internals/core-engine]], the [[internals/ops-registry]], the
-[[internals/three-tiers-server|server]], [[internals/worktree-transactions]],
-[[internals/projections-and-db]], the [[internals/query-engine]], and the
-[[internals/frontend]].
+How grove is built. Start at [architecture](architecture.md), then the
+[core-engine](core-engine.md), the [ops-registry](ops-registry.md), the
+[server](three-tiers-server.md), [worktree-transactions](worktree-transactions.md),
+[projections-and-db](projections-and-db.md), the [query-engine](query-engine.md), and the
+[frontend](frontend.md).
 
 Each page carries an **area** field (core / server / app / cli / ingest) — filter the table by it.
 

@@ -4,7 +4,7 @@
 
 The fundamental boundary is **Git commit**. Files may be edited by the app, the CLI, an AI, or a
 plain editor; once a commit is made, grove updates generated markdown and derived
-[[internals/projections-and-db|projections]] from that canonical content.
+[projections](../internals/projections-and-db.md) from that canonical content.
 
 ## In the app
 
@@ -12,7 +12,7 @@ plain editor; once a commit is made, grove updates generated markdown and derive
 2. **Commit** sends the changed files to the server as one change set.
 3. The server applies them in a **git worktree transaction**: a branch off HEAD, the edits, generated
    README files, a build *in the worktree* as a gate, then a merge to the space's branch **only if it
-   builds and merges cleanly**. See [[internals/worktree-transactions]].
+   builds and merges cleanly**. See [worktree-transactions](../internals/worktree-transactions.md).
 4. A clean merge **respins** the space (rebuilds `db/`), advancing HEAD.
 5. The app reloads canonical content and clears the drafts.
 
@@ -49,4 +49,4 @@ grove change begin                 # → { id, worktree }
 grove change commit --id <id> --message "…"
 ```
 
-See [[concepts/drafts-respins-and-the-log]] for what a respin records.
+See [drafts-respins-and-the-log](../concepts/drafts-respins-and-the-log.md) for what a respin records.

@@ -19,6 +19,14 @@
             builtAt: d.builtAt,
             durationMs: d.durationMs,
             warnings: Array.isArray(d.warnings) ? d.warnings.length : 0,
+            outputs: Array.isArray(d.outputs)
+              ? d.outputs
+                  .map((o) =>
+                    typeof o === 'object' && o !== null && 'name' in o ? String(o.name) : '',
+                  )
+                  .filter(Boolean)
+                  .join(', ')
+              : '',
             error: d.error ?? '',
           }))
           .reverse() // newest first
@@ -34,6 +42,7 @@
     { key: 'builtAt' },
     { key: 'durationMs', label: 'ms', numeric: true },
     { key: 'warnings', numeric: true },
+    { key: 'outputs' },
     { key: 'error' },
   ]
 </script>

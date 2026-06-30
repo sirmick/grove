@@ -2,7 +2,7 @@
 
 **Order:** 5
 
-Because [[concepts/schemas-and-extraction|bold-label fields are typed]], every collection is a small
+Because [bold-label fields are typed](../concepts/schemas-and-extraction.md), every collection is a small
 table you can filter, sort, and aggregate. The query box sits on each collection page (instant,
 client-side) and the same engine is `grove query run`.
 
@@ -30,4 +30,4 @@ grove query run --collection stocks --agg "count,avg:pe,sum:marketCap" --groupBy
 ```
 
 `count · sum · avg · min · max`, optionally grouped. The engine is a tiny pure function shared by
-the CLI and the UI — see [[internals/query-engine]].
+the CLI and the UI — see [query-engine](../internals/query-engine.md).

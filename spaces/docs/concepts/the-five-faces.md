@@ -15,9 +15,9 @@ operation is declared once in a namespaced **ops registry** — `{ input: zodSch
 | **MCP** | `grove.<ns>.<verb>` tools *(planned)* |
 
 Because there's one source, the CLI can't drift from the JS API, and even the AI's system prompt is
-**generated from the registry** ([[guides/the-ai-terminal]]) — add an op and it appears everywhere.
+**generated from the registry** ([the-ai-terminal](../guides/the-ai-terminal.md)) — add an op and it appears everywhere.
 
-The same "build once" instinct shows up in the [[internals/query-engine|query engine]] (one pure
+The same "build once" instinct shows up in the [query engine](../internals/query-engine.md) (one pure
 function powers the CLI and the UI table) and in the
-[[internals/worktree-transactions|commit transaction]] (one mechanism behind the app's Commit and
-the CLI's `change`). See [[internals/ops-registry]] for the implementation.
+[commit transaction](../internals/worktree-transactions.md) (one mechanism behind the app's Commit and
+the CLI's `change`). See [ops-registry](../internals/ops-registry.md) for the implementation.

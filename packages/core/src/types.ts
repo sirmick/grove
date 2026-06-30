@@ -75,6 +75,7 @@ export interface RespinRecord {
   durationMs: number
   warnings: string[]
   error: string | null
+  outputs?: OutputArtifact[]
 }
 
 export interface LogEntry {
@@ -90,4 +91,14 @@ export interface DbMeta {
   respin: RespinRecord
   log: LogEntry[]
   collections: Record<string, { etag: string; count: number }>
+  outputs: OutputArtifact[]
+}
+
+export interface OutputArtifact {
+  name: string
+  label: string
+  kind: 'obsidian-vault'
+  path: string
+  files: number
+  notes: number
 }

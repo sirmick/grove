@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } f
 import { dirname, join } from 'node:path'
 import {
   type Ctx,
+  type OpTree,
   allLinks,
   backlinks,
   buildTree,
@@ -47,7 +48,7 @@ function writeFile(ctx: Ctx, rel: string, content: string) {
 
 const flipStatus = (raw: string) => raw.replace(/^(\s*_status:\s*)review\s*$/m, '$1verified')
 
-export const ops = defineOps({
+export const ops: OpTree = defineOps({
   // Whole spaces (a space = a directory with a _grove/). The root defaults to the parent of the
   // current --space, so `grove spaces create --name x` makes a sibling space.
   spaces: {

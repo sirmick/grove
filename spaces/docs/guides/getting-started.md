@@ -26,14 +26,14 @@ GROVE_SPACE=$PWD/spaces/docs pnpm dev
 
 ## The three panes
 
-- **Left — tree.** Collections and their leaf documents, plus a **Project** node (global metadata +
-  the respin [[concepts/drafts-respins-and-the-log|log]]).
-- **Centre — page.** A [[concepts/the-model|collection]] page (overview, schema, a
-  [[guides/querying|data table]]) or a document (read view / editor).
-- **Bottom — terminal.** A real shell with `grove` on PATH and an [[guides/the-ai-terminal|`ai`]]
+- **Left — tree.** Collections and their leaf documents, plus a **Project** node (global metadata,
+  the respin [log](../concepts/drafts-respins-and-the-log.md), and the project-wide link map).
+- **Centre — page.** A [collection](../concepts/the-model.md) page (overview, schema, a
+  [data table](querying.md)) or a document (read view / editor).
+- **Bottom — terminal.** A real shell with `grove` on PATH and an [`ai`](the-ai-terminal.md)
   launcher.
 
 ## Next
 
-[[guides/using-the-cli]] · [[guides/collections-and-schemas]] · [[guides/editing]] ·
-[[guides/querying]] · [[guides/the-commit-cycle]].
+[using-the-cli](using-the-cli.md) · [collections-and-schemas](collections-and-schemas.md) · [editing](editing.md) ·
+[querying](querying.md) · [the-commit-cycle](the-commit-cycle.md).

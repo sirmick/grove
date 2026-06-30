@@ -9,7 +9,7 @@ A **collection** is any folder with a `_grove/` metadata directory. Inside it:
 - optional `templates/`, `prompts/`
 
 Leaf `.md` files are the records. Collections nest — a sub-folder with its own `_grove/` is a child
-collection. See [[concepts/the-model]].
+collection. See [the-model](../concepts/the-model.md).
 
 ## schema.yaml
 
@@ -25,7 +25,7 @@ fields:
 ```
 
 Field types: `string · integer · number · boolean · date · enum`. Typed values become queryable
-columns — see [[concepts/schemas-and-extraction]] and [[guides/querying]].
+columns — see [schemas-and-extraction](../concepts/schemas-and-extraction.md) and [querying](querying.md).
 
 ## Creating one
 
@@ -37,4 +37,4 @@ grove collections create --name incidents --parent events --entry form
 ```
 
 Either way it scaffolds `schema.yaml` + `overview.md` and lands through the
-[[guides/the-commit-cycle|commit cycle]].
+[commit cycle](the-commit-cycle.md).

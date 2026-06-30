@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { loadCorpusFromDir } from '../src/node'
+import { markdownHrefForSlug, normalizeWikilinksToMarkdown } from '../src/parse'
 import {
   allLinks,
   backlinks,
@@ -55,6 +56,33 @@ describe('read engine', () => {
     ).toBe(true)
     expect(backlinks(corpus, 'trades/2026-06-10-nvda').map((l) => l.src)).toContain(
       'notes/datacenter-selloff',
+    )
+  })
+
+  it('resolves relative Markdown links into the same graph as wikilinks', () => {
+    const c = {
+      ...corpus,
+      'notes/markdown-link.md':
+        '# Markdown Link\n\nSee [Tokyo](../capitals/tokyo.md) and [selloff](datacenter-selloff.md).\n',
+    }
+    const out = allLinks(c).filter((l) => l.src === 'notes/markdown-link')
+    expect(out).toEqual([
+      { src: 'notes/markdown-link', dst: 'capitals/tokyo', display: 'Tokyo' },
+      { src: 'notes/markdown-link', dst: 'notes/datacenter-selloff', display: 'selloff' },
+    ])
+  })
+
+  it('normalizes wikilinks to relative Markdown links for portable source', () => {
+    const known = new Set(['capitals/tokyo', 'notes/datacenter-selloff'])
+    expect(markdownHrefForSlug('notes/welcome', 'capitals/tokyo')).toBe('../capitals/tokyo.md')
+    expect(
+      normalizeWikilinksToMarkdown(
+        'notes/welcome',
+        'Jump to [[capitals/tokyo|Tokyo]] or [[notes/datacenter-selloff]]. Keep [[missing]].',
+        known,
+      ),
+    ).toBe(
+      'Jump to [Tokyo](../capitals/tokyo.md) or [datacenter-selloff](datacenter-selloff.md). Keep [[missing]].',
     )
   })
 

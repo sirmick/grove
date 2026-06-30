@@ -9,12 +9,13 @@ const flag = (k: string, d: boolean) => {
   const v = localStorage.getItem(k)
   return v == null ? d : v === '1'
 }
+const narrow = typeof window !== 'undefined' && window.innerWidth < 700
 
 export const ui = $state({
   treeW: num('grove.treeW', 260),
   termH: num('grove.termH', 200),
-  treeOpen: flag('grove.treeOpen', true),
-  termOpen: flag('grove.termOpen', true),
+  treeOpen: flag('grove.treeOpen', !narrow),
+  termOpen: flag('grove.termOpen', !narrow),
 })
 
 export function setTreeW(px: number) {

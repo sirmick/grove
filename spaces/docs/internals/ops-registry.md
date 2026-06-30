@@ -3,7 +3,7 @@
 **Area:** cli
 **Order:** 3
 
-One nested registry declares every operation; the [[concepts/the-five-faces|faces]] are generated
+One nested registry declares every operation; the [faces](../concepts/the-five-faces.md) are generated
 from it.
 
 ```ts
@@ -29,7 +29,7 @@ and prints the result (string as-is, else JSON).
 Because there is exactly one source:
 
 - the CLI cannot drift from the JS API,
-- the AI system prompt is rendered from the same registry ([[guides/the-ai-terminal]]),
+- the AI system prompt is rendered from the same registry ([the-ai-terminal](../guides/the-ai-terminal.md)),
 - adding an op lights it up everywhere at once.
 
 HTTP (`POST /op/<ns>/<verb>`) and MCP faces generate the same way and are planned next.
