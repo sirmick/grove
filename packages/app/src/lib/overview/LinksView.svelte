@@ -1,7 +1,8 @@
 <script lang="ts">
-  import type { LinkEdge } from '@grove/core'
+  import { parseLinks, proseOf, type LinkEdge } from '@grove/core'
   import { grove } from '../grove/client'
   import Icon from '../icons/Icon.svelte'
+  import { renderMarkdown } from '../md'
   import { openRecord } from '../state.svelte'
   import Graph3D from './Graph3D.svelte'
 
@@ -27,14 +28,29 @@
 
   let q = $state('')
   let selected = $state<string | null>(null)
+  let popupOpen = $state(true)
 
-  const rows = $derived.by<LinkRow[]>(() =>
-    grove.search.slugs().map((slug) => {
+  const rows = $derived.by<LinkRow[]>(() => {
+    const slugs = grove.search.slugs()
+    if (grove.records.exists('README')) slugs.unshift('README')
+    const unique = [...new Set(slugs)]
+    const home = grove.records.read('README')
+    const homeOut = home ? parseLinks('README', home.body) : []
+    const homeBacklinks = new Map<string, LinkEdge[]>()
+    for (const edge of homeOut) {
+      const list = homeBacklinks.get(edge.dst) ?? []
+      list.push(edge)
+      homeBacklinks.set(edge.dst, list)
+    }
+
+    return unique.map((slug) => {
       const rec = grove.records.read(slug)
       const links = grove.links.of(slug)
-      return { slug, title: rec?.meta.title ?? slug, out: links.out, in: links.in }
-    }),
-  )
+      const out = slug === 'README' ? homeOut : links.out
+      const fromHome = slug === 'README' ? [] : (homeBacklinks.get(slug) ?? [])
+      return { slug, title: rec?.meta.title ?? slug, out, in: [...links.in, ...fromHome] }
+    })
+  })
 
   const filtered = $derived.by(() => {
     const needle = q.trim().toLowerCase()
@@ -48,7 +64,16 @@
     )
   })
 
-  const active = $derived(rows.find((r) => r.slug === selected) ?? filtered[0] ?? rows[0])
+  const homeRow = $derived(rows.find((r) => r.slug === 'README'))
+  const active = $derived(
+    rows.find((r) => r.slug === selected) ??
+      (q.trim() ? filtered[0] : homeRow) ??
+      filtered[0] ??
+      rows[0],
+  )
+  const activeRecord = $derived(active ? grove.records.read(active.slug) : undefined)
+  const activeBody = $derived(activeRecord ? proseOf(activeRecord.body) : '')
+  const activeHtml = $derived(activeRecord ? renderMarkdown(activeBody, activeRecord.meta.slug) : '')
   const totalLinks = $derived(rows.reduce((n, r) => n + r.out.length, 0))
   const linkedRecords = $derived(rows.filter((r) => r.out.length || r.in.length).length)
   const orphanCount = $derived(rows.filter((r) => r.in.length === 0).length)
@@ -67,8 +92,22 @@
       for (const l of row?.out ?? []) related.add(l.dst)
       for (const l of row?.in ?? []) related.add(l.src)
     }
+    const candidateMap = new Map(candidates.map((r) => [r.slug, r]))
+    const activeRow = rows.find((r) => r.slug === activeSlug)
+    if (activeRow) {
+      candidateMap.set(activeRow.slug, activeRow)
+      for (const l of activeRow.out) {
+        const row = rows.find((r) => r.slug === l.dst)
+        if (row) candidateMap.set(row.slug, row)
+      }
+      for (const l of activeRow.in) {
+        const row = rows.find((r) => r.slug === l.src)
+        if (row) candidateMap.set(row.slug, row)
+      }
+    }
+
     const nodes = new Map<string, GraphNode>()
-    candidates.forEach((r) => {
+    for (const r of candidateMap.values()) {
       const degree = r.out.length + r.in.length
       const isRelated = !activeSlug || related.has(r.slug)
       nodes.set(r.slug, {
@@ -77,7 +116,7 @@
         dim: Boolean(activeSlug && !isRelated),
         related: isRelated,
       })
-    })
+    }
     const edges: GraphEdge[] = []
     for (const r of rows) {
       const src = nodes.get(r.slug)
@@ -98,6 +137,16 @@
 
   function choose(slug: string) {
     selected = slug
+    popupOpen = true
+  }
+
+  function onPopupClick(e: MouseEvent) {
+    const a = (e.target as HTMLElement).closest('a.wikilink, a.rellink')
+    if (!a) return
+    const target = (a as HTMLElement).dataset.slug
+    if (!target) return
+    e.preventDefault()
+    choose(target)
   }
 </script>
 
@@ -119,12 +168,42 @@
     <input type="search" placeholder="Filter links..." bind:value={q} />
   </div>
 
-  <Graph3D
-    nodes={graph.nodes}
-    edges={graph.edges}
-    activeSlug={active?.slug ?? ''}
-    onselect={choose}
-    onopen={openRecord} />
+  <div class="map-shell">
+    <Graph3D
+      nodes={graph.nodes}
+      edges={graph.edges}
+      activeSlug={active?.slug ?? ''}
+      onselect={choose}
+      onopen={openRecord} />
+
+    {#if active && activeRecord && popupOpen}
+      <aside class="preview" aria-live="polite">
+        <div class="preview-head">
+          <div>
+            <h2>{active.title}</h2>
+            <code>{active.slug}</code>
+          </div>
+          <div class="preview-actions">
+            <button class="btn" onclick={() => openRecord(active.slug)}>
+              <Icon name="file-text" size={15} /> Open
+            </button>
+            <button class="btn icon" aria-label="Close preview" onclick={() => (popupOpen = false)}>
+              <Icon name="x" size={15} />
+            </button>
+          </div>
+        </div>
+
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="preview-body" onclick={onPopupClick}>
+          {#if activeBody}
+            {@html activeHtml}
+          {:else}
+            <p class="muted">No body content.</p>
+          {/if}
+        </div>
+      </aside>
+    {/if}
+  </div>
 
   <section class="layout">
     <div class="records" aria-label="Records">
@@ -194,6 +273,89 @@
 <style>
   .linksview {
     max-width: 1120px;
+  }
+  .map-shell {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #c8d3e3;
+    border-radius: var(--radius);
+    background: #f6f8fb;
+    margin-bottom: 14px;
+  }
+  .preview {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    width: min(440px, calc(100% - 24px));
+    max-height: min(520px, calc(100% - 24px));
+    color: #172033;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(94, 113, 138, 0.34);
+    border-radius: var(--radius);
+    box-shadow: 0 18px 44px rgba(20, 32, 50, 0.22);
+  }
+  .preview-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid #dce4ef;
+  }
+  .preview-head h2 {
+    margin: 0 0 2px;
+    color: #111827;
+    font-size: 18px;
+    line-height: 1.22;
+  }
+  .preview-head code {
+    color: #5b6678;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .preview-actions {
+    display: flex;
+    flex: none;
+    gap: 6px;
+  }
+  .preview .btn {
+    background: #eef3f8;
+    border-color: #cbd6e4;
+    color: #172033;
+  }
+  .preview .btn:hover {
+    border-color: #16836f;
+  }
+  .preview-body {
+    min-height: 0;
+    overflow: auto;
+    padding: 6px 14px 14px;
+    color: #172033;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .preview-body :global(h1),
+  .preview-body :global(h2),
+  .preview-body :global(h3) {
+    color: #111827;
+  }
+  .preview-body :global(a.wikilink),
+  .preview-body :global(a.rellink) {
+    color: #006fc9;
+    text-decoration: none;
+    border-bottom: 1px dotted #006fc9;
+    cursor: pointer;
+  }
+  .preview-body :global(a.wikilink:hover),
+  .preview-body :global(a.rellink:hover) {
+    border-bottom-style: solid;
+  }
+  .preview-body :global(img) {
+    max-width: 100%;
+    height: auto;
   }
   .summary {
     display: grid;

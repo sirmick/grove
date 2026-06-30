@@ -61,7 +61,7 @@
   let hovered: Particle | null = null
   const pointer = new THREE.Vector2()
   const raycaster = new THREE.Raycaster()
-  const palette = ['#4ec9a8', '#6aa3ff', '#e0a458', '#e06c75', '#b98cff', '#55d6ff', '#f5c16c']
+  const palette = ['#008f73', '#276ef1', '#c56a00', '#d33f49', '#8357c5', '#007c9b', '#b7791f']
 
   function hash(s: string): number {
     let h = 2166136261
@@ -94,9 +94,9 @@
       ctx.font = '600 34px ui-sans-serif, system-ui, sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.lineWidth = 9
-      ctx.strokeStyle = 'rgba(11, 13, 18, 0.92)'
-        ctx.fillStyle = '#eef7ff'
+      ctx.lineWidth = 10
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.96)'
+      ctx.fillStyle = '#172033'
       const label = text.length > 28 ? `${text.slice(0, 25)}...` : text
       ctx.strokeText(label, 256, 64)
       ctx.fillText(label, 256, 64)
@@ -169,9 +169,9 @@
         if (!src || !dst) return null
         const geometry = new THREE.BufferGeometry().setFromPoints([src.pos, dst.pos])
         const material = new THREE.LineBasicMaterial({
-          color: data.active ? '#4ec9a8' : '#6aa3ff',
+          color: data.active ? '#16836f' : '#5878c9',
           transparent: true,
-          opacity: data.active || !activeSlug ? 0.74 : 0.18,
+          opacity: data.active || !activeSlug ? 0.82 : 0.22,
         })
         const line = new THREE.Line(geometry, material)
         edgeGroup.add(line)
@@ -187,23 +187,23 @@
       const isHover = p === hovered
       const isRelated = p.data.related
       const color = isActive
-        ? new THREE.Color('#e0a458')
+        ? new THREE.Color('#d87500')
         : isHover
-          ? new THREE.Color('#d8fff4')
+          ? new THREE.Color('#111827')
           : isRelated
-            ? new THREE.Color('#4ec9a8')
+            ? new THREE.Color('#008f73')
             : collectionColor(p.data.slug)
       p.mesh.material.color.copy(color)
       p.mesh.material.emissive.copy(color)
-      p.mesh.material.emissiveIntensity = isActive || isHover ? 0.95 : isRelated ? 0.68 : 0.42
-      p.mesh.material.opacity = p.data.dim ? 0.36 : 1
+      p.mesh.material.emissiveIntensity = isActive || isHover ? 0.32 : isRelated ? 0.18 : 0.08
+      p.mesh.material.opacity = p.data.dim ? 0.28 : 1
       p.label.visible = isActive || isHover || isRelated || p.data.degree >= 2
       const labelMat = p.label.material as THREE.SpriteMaterial
-      labelMat.opacity = p.data.dim ? 0.34 : 1
+      labelMat.opacity = p.data.dim ? 0.42 : 1
     }
     for (const l of links) {
-      l.line.material.color.set(l.data.active || !activeSlug ? '#4ec9a8' : '#6aa3ff')
-      l.line.material.opacity = l.data.active || !activeSlug ? 0.78 : 0.16
+      l.line.material.color.set(l.data.active || !activeSlug ? '#16836f' : '#5878c9')
+      l.line.material.opacity = l.data.active || !activeSlug ? 0.84 : 0.2
     }
   }
 
@@ -293,12 +293,13 @@
 
   onMount(() => {
     scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2('#0b0d12', 0.012)
+    scene.fog = new THREE.FogExp2('#f6f8fb', 0.009)
     camera = new THREE.PerspectiveCamera(52, 1, 0.1, 1000)
     camera.position.set(0, 8, 76)
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
     renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.setClearColor('#f6f8fb', 1)
     host.appendChild(renderer.domElement)
     controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
@@ -308,10 +309,10 @@
     controls.minDistance = 28
     controls.maxDistance = 160
 
-    const ambient = new THREE.AmbientLight('#d8dee9', 0.56)
-    const key = new THREE.DirectionalLight('#ffffff', 1.35)
+    const ambient = new THREE.AmbientLight('#ffffff', 1.05)
+    const key = new THREE.DirectionalLight('#ffffff', 1.7)
     key.position.set(30, 45, 60)
-    const fill = new THREE.PointLight('#4ec9a8', 4, 160)
+    const fill = new THREE.PointLight('#7cc9bc', 2.4, 160)
     fill.position.set(-30, -14, 38)
     scene.add(ambient, key, fill)
 
@@ -328,10 +329,10 @@
       new THREE.Points(
         stars,
         new THREE.PointsMaterial({
-          color: '#6aa3ff',
-          size: 0.28,
+          color: '#9aaabd',
+          size: 0.24,
           transparent: true,
-          opacity: 0.5,
+          opacity: 0.34,
           depthWrite: false,
         }),
       ),
@@ -373,10 +374,7 @@
     min-height: 360px;
     overflow: hidden;
     cursor: grab;
-    background:
-      radial-gradient(circle at 50% 42%, rgba(78, 201, 168, 0.14), transparent 33%),
-      radial-gradient(circle at 72% 24%, rgba(106, 163, 255, 0.13), transparent 28%),
-      linear-gradient(180deg, rgba(11, 13, 18, 0.18), rgba(11, 13, 18, 0.68));
+    background: linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
   }
   .graph3d:active {
     cursor: grabbing;

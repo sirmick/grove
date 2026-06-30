@@ -28,6 +28,7 @@
     Search,
     Table2,
     Terminal,
+    X,
   } from '@lucide/svelte'
   import type { Component } from 'svelte'
 
@@ -60,6 +61,7 @@
     search: Search,
     'table-2': Table2,
     terminal: Terminal,
+    x: X,
   }
 
   const Cmp = $derived(map[name])
