@@ -122,4 +122,24 @@
     max-width: 100%;
     height: auto;
   }
+  /* Inline .svg embeds (mockups, exported diagrams) rendered from `![](x.svg)` or `[cap](x.svg)`. */
+  .body :global(.svg-embed) {
+    display: block;
+    margin: 1em 0;
+    text-align: center;
+  }
+  .body :global(.svg-embed img) {
+    max-width: 100%;
+    height: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+  }
+  .body :global(.svg-cap) {
+    display: block;
+    margin-top: 0.4em;
+    font-size: 0.85em;
+    color: var(--muted);
+  }
 </style>

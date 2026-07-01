@@ -34,6 +34,18 @@ function resolveRel(baseSlug: string, target: string): string {
 
 const assetUrl = (rel: string) => `/assets/${rel.split('/').map(encodeURIComponent).join('/')}`
 const isExternal = (href: string) => /^(https?:|mailto:|tel:|data:|#)/i.test(href)
+const isSvg = (href: string) => /\.svg(?:[?#]|$)/i.test(href)
+
+// A relative .svg target — from either `![alt](x.svg)` image syntax or `[caption](x.svg)` link
+// syntax — renders inline as a framed figure instead of a bare <img> or a plain hyperlink: the SVG
+// sits on a white canvas (legible on any theme) with an optional caption, and clicking it opens the
+// raw asset full-size in a new tab. Span-based (not <figure>) so it stays valid inside marked's <p>.
+function svgEmbed(rel: string, caption: string): string {
+  const url = assetUrl(rel)
+  const c = (caption ?? '').trim()
+  const cap = c ? `<span class="svg-cap">${escapeHtml(c)}</span>` : ''
+  return `<span class="svg-embed"><a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${escapeAttr(c)}" loading="lazy"></a>${cap}</span>`
+}
 
 // The doc being rendered, set per call so the global renderer can resolve doc-relative paths.
 // Safe because marked.parse runs synchronously (async:false), single-threaded.
@@ -55,13 +67,16 @@ marked.use({
         const slug = resolved.replace(/\.(md|markdown)$/i, '')
         return `<a class="rellink" data-slug="${escapeAttr(slug)}" href="#${escapeAttr(slug)}">${escapeHtml(text)}</a>`
       }
+      if (isSvg(href)) return svgEmbed(resolved, text ?? '')
       return `<a href="${assetUrl(resolved)}">${escapeHtml(text)}</a>`
     },
     // Relative images load from the asset route; external/data images keep marked's default.
     image({ href, text, title }) {
       if (!href || /^(https?:|data:)/i.test(href)) return false
+      const rel = resolveRel(currentBase, href)
+      if (isSvg(href)) return svgEmbed(rel, title ?? text ?? '')
       const t = title ? ` title="${escapeAttr(title)}"` : ''
-      return `<img src="${assetUrl(resolveRel(currentBase, href))}" alt="${escapeAttr(text ?? '')}"${t} loading="lazy">`
+      return `<img src="${assetUrl(rel)}" alt="${escapeAttr(text ?? '')}"${t} loading="lazy">`
     },
   },
 })
