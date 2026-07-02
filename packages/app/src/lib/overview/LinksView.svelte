@@ -4,7 +4,7 @@
   import Icon from '../icons/Icon.svelte'
   import { renderMarkdown } from '../md'
   import { openRecord } from '../state.svelte'
-  import Graph3D from './Graph3D.svelte'
+  import Graph2D from './Graph2D.svelte'
 
   interface LinkRow {
     slug: string
@@ -169,7 +169,7 @@
   </div>
 
   <div class="map-shell">
-    <Graph3D
+    <Graph2D
       nodes={graph.nodes}
       edges={graph.edges}
       activeSlug={active?.slug ?? ''}
