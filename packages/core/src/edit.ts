@@ -1,6 +1,7 @@
+import { stringify as stringifyYaml } from 'yaml'
 // Write-side helpers: compose house-format markdown, split prose, slugify, templates.
 // Pure + reused by the FE editor now and the server write path later.
-import { stringify as stringifyYaml } from 'yaml'
+import { maskCode } from './parse'
 
 export function slugify(s: string): string {
   return s
@@ -46,13 +47,57 @@ export function composeFile(
   return `${b}\n`
 }
 
-/** The prose remainder of a body: drop the `# heading` and `**Label:**` field lines. */
-export function proseOf(body: string): string {
+const FIELD_LABEL_RE = /^\*\*([^:*]+):\*\*/
+
+/** The prose remainder of a body: drop the `# heading` and `**Label:**` field lines. Lines inside
+ *  code fences are preserved even when they look like a heading or a field. When `fieldLabels` is
+ *  given, ONLY those declared fields are stripped — an undeclared `**Foo:**` line is real prose and
+ *  is kept (otherwise a Form-mode save would silently delete it). */
+export function proseOf(body: string, fieldLabels?: readonly string[]): string {
+  const known = fieldLabels ? new Set(fieldLabels.map((f) => f.toLowerCase())) : null
+  const maskedLines = maskCode(body).split('\n')
+  const isFieldLine = (l: string): boolean => {
+    const m = FIELD_LABEL_RE.exec(l)
+    if (!m) return false
+    return known ? known.has((m[1] ?? '').trim().toLowerCase()) : true
+  }
   return body
     .split('\n')
-    .filter((l) => !/^#\s/.test(l) && !/^\*\*[^:*]+:\*\*/.test(l))
+    .filter((l, i) => {
+      const masked = maskedLines[i] ?? l
+      if (masked !== l) return true // this line is (partly) code — keep it verbatim
+      return !/^#\s/.test(l) && !isFieldLine(l)
+    })
     .join('\n')
     .trim()
+}
+
+// The rich (TipTap) editor treats single-newline-adjacent lines as ONE paragraph and reserializes
+// them joined by spaces — which silently merges the house format's `**Field:**` lines and a `#`
+// heading into one line. Inserting a blank line after each heading/field line (outside code fences)
+// makes each its own block, so the round-trip preserves them. Idempotent.
+const HEAD_OR_FIELD_RE = /^(#{1,6}\s|\*\*[^:*]+:\*\*)/
+export function separateBlockLines(body: string): string {
+  const lines = body.split('\n')
+  const masked = maskCode(body).split('\n')
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    out.push(line)
+    const isStructural = masked[i] === line && HEAD_OR_FIELD_RE.test(line)
+    const next = lines[i + 1]
+    if (isStructural && next !== undefined && next.trim() !== '') out.push('')
+  }
+  return out.join('\n')
+}
+
+// The TipTap markdown serializer escapes `[`/`]`, turning `[[slug]]` into `\[\[slug\]\]` and
+// breaking wikilinks. Restore the bracket pairs (and an escaped `\|` display separator) so
+// wikilinks survive an edit. Only touches doubled brackets, so ordinary escaped `\[` is left alone.
+export function unescapeWikilinks(md: string): string {
+  return md.replace(/\\\[\\\[([\s\S]*?)\\\]\\\]/g, (_m, inner: string) => {
+    return `[[${inner.replace(/\\\|/g, '|')}]]`
+  })
 }
 
 export function instantiateTemplate(tpl: string, title: string): string {

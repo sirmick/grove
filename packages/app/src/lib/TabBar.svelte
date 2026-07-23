@@ -9,7 +9,7 @@
     slugify,
   } from '@grove/core'
   import { draftCount, hasDraft, setDraft } from './db/drafts.svelte'
-  import { type SyncStatus, commitAll, currentHead, syncState } from './db/sync.svelte'
+  import { type SyncStatus, commitAll, currentHead, isBusy, syncState } from './db/sync.svelte'
   import { grove } from './grove/client'
   import Icon from './icons/Icon.svelte'
   import { activeTab, closeTab, openCollection, openRecord, setActive, tabsState } from './state.svelte'
@@ -35,6 +35,11 @@
   const templates = $derived(collection ? grove.collections.get(collection).manifest.templates : [])
   const activeDoc = $derived(activeTab()?.kind === 'doc' ? (activeTab()?.ref ?? null) : null)
 
+  let newMenu = $state<HTMLDetailsElement>()
+  const closeNewMenu = () => {
+    if (newMenu) newMenu.open = false
+  }
+
   function startEdit() {
     if (!activeDoc) return
     editor.mode = grove.schema.get(dirOf(activeDoc)).entry === 'form' ? 'form' : 'document'
@@ -42,6 +47,7 @@
   }
 
   function create(tpl: string) {
+    closeNewMenu()
     const c = currentCollection()
     if (!c) return
     const title = window.prompt(`New ${c} document — title?`)
@@ -62,6 +68,7 @@
   }
 
   function createCollection() {
+    closeNewMenu()
     const parent = currentCollection()
     const name = window.prompt(
       parent ? `New collection under ${parent} — name?` : 'New top-level collection — name?',
@@ -118,7 +125,7 @@
       </span>
     {/if}
 
-    <details class="newmenu">
+    <details class="newmenu" bind:this={newMenu}>
       <summary class="btn"><Icon name="plus" size={15} /> New</summary>
       <div class="menu">
         <button onclick={() => create('')} disabled={!collection}>
@@ -134,7 +141,8 @@
 
     <button
       class="btn primary"
-      disabled={draftCount() === 0 || syncState.status !== 'idle'}
+      disabled={draftCount() === 0 || isBusy()}
+      title={syncState.status === 'error' ? syncState.message : 'Commit all drafts'}
       onclick={() => void commitAll()}>
       <Icon name="save" size={15} /> Save ({draftCount()})
     </button>

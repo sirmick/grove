@@ -5,7 +5,7 @@ import { noteAuth } from '../auth.svelte'
 import { grove } from '../grove/client'
 import { loadCorpus } from '../grove/corpusState.svelte'
 import { closeByRef, tabsState } from '../state.svelte'
-import { clearAllDrafts, draftsState } from './drafts.svelte'
+import { clearCommittedDrafts, draftsState } from './drafts.svelte'
 import { invalidateSearch } from './search.svelte'
 
 export type SyncStatus = 'idle' | 'committing' | 'rebuilding' | 'reloading' | 'error'
@@ -19,6 +19,16 @@ export const syncState = $state<{
 
 export function currentHead(): string {
   return syncState.headCommit || 'dev'
+}
+
+// The Save button must stay clickable in the `error` state (so a failed commit can be retried) and
+// in `idle`; it's only truly blocked while a commit/rebuild/reload is actually running.
+export function isBusy(): boolean {
+  return (
+    syncState.status === 'committing' ||
+    syncState.status === 'rebuilding' ||
+    syncState.status === 'reloading'
+  )
 }
 
 interface MetaLite {
@@ -41,9 +51,11 @@ async function applyReload() {
   syncState.status = 'reloading'
   await loadCorpus()
   invalidateSearch()
-  const exist = new Set(grove.search.slugs())
+  // Close only doc tabs whose file is truly gone. Use records.exists (checks the corpus file), NOT
+  // the slug list — the latter excludes README.md, which is openable from the Links view and would
+  // otherwise be closed on every respin.
   for (const t of [...tabsState.tabs]) {
-    if (t.kind === 'doc' && !exist.has(t.ref)) closeByRef('doc', t.ref)
+    if (t.kind === 'doc' && !grove.records.exists(t.ref)) closeByRef('doc', t.ref)
   }
   syncState.status = 'idle'
   syncState.message = ''
@@ -70,13 +82,25 @@ export async function commitAll(): Promise<void> {
   if (entries.length === 0) return
 
   syncState.status = 'committing'
+  syncState.message = ''
   const files: Record<string, string> = {}
-  for (const [path, d] of entries) files[path] = d.content
+  // Snapshot each draft's updatedAt so a keystroke landing while the commit is in flight isn't
+  // discarded on success (its updatedAt will differ → the draft is kept).
+  const committed: Record<string, number> = {}
+  for (const [path, d] of entries) {
+    files[path] = d.content
+    committed[path] = d.updatedAt
+  }
+  // If every committed draft was based on the same commit, send it so the server can branch the
+  // transaction from THAT base and detect a real conflict against an advanced HEAD. Mixed/'dev'
+  // bases fall back to HEAD (the previous behavior).
+  const bases = new Set(entries.map(([, d]) => d.baseCommit))
+  const base = bases.size === 1 && !bases.has('dev') ? entries[0]?.[1].baseCommit : undefined
   try {
     const r = await fetch('/commit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: `grove: ${entries.length} file(s)`, files }),
+      body: JSON.stringify({ message: `grove: ${entries.length} file(s)`, files, base }),
     })
     const res = (await r.json().catch(() => ({}))) as {
       ok?: boolean
@@ -86,14 +110,15 @@ export async function commitAll(): Promise<void> {
       error?: string
     }
     if (!r.ok || !res.ok) {
-      // Transaction rejected — main is untouched. Keep drafts so the edit isn't lost.
+      // Transaction rejected — main is untouched. Keep drafts so the edit isn't lost. Status stays
+      // `error` (message shown), but Save is re-enabled (isBusy() is false) so it can be retried.
       syncState.status = 'error'
       syncState.message = res.conflicts?.length
         ? `merge conflict in ${res.conflicts.join(', ')} — drafts kept, reload and retry`
         : `commit failed: ${res.error ?? `HTTP ${r.status}`} — drafts kept`
       return
     }
-    clearAllDrafts()
+    clearCommittedDrafts(committed)
     if (res.builtAt) syncState.builtAt = res.builtAt
     if (res.headCommit) syncState.headCommit = res.headCommit
     await applyReload() // server already rebuilt after the merge; just reload canonical

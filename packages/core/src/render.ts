@@ -24,6 +24,13 @@ function linkedSection(corpus: Corpus, srcSlug: string, src: string, fallback: s
   )
 }
 
+// Cells render into an HTML-live markdown table (we emit `<br>` for newlines), so record-authored
+// text must be HTML-escaped or a `<img onerror>` in a field value would execute wherever the README
+// is viewed.
+function escapeCellHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function cell(value: unknown): string {
   if (value === undefined || value === null) return ''
   const text = Array.isArray(value)
@@ -31,12 +38,20 @@ function cell(value: unknown): string {
     : typeof value === 'object'
       ? JSON.stringify(value)
       : String(value)
-  return text.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|')
+  return escapeCellHtml(text).replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|')
+}
+
+// Percent-encode a link destination per path segment (spaces, parens, unicode) so a filename like
+// `new york.md` produces a valid CommonMark destination.
+function encodeHref(href: string): string {
+  return href
+    .split('/')
+    .map((seg) => (seg === '..' ? seg : encodeURIComponent(seg)))
+    .join('/')
 }
 
 function linkCell(label: unknown, href: string): string {
-  const text = cell(label).replace(/\]/g, '\\]')
-  return `[${text}](${href.replace(/\)/g, '%29')})`
+  return `[${cell(label)}](${encodeHref(href)})`
 }
 
 function changedCell(changed: LogEntry['changed']): string {

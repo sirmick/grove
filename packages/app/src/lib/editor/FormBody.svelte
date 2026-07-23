@@ -24,7 +24,7 @@
 
   // Snapshot the incoming body once; edits flow out via onchange (parent is the source of truth).
   let title = $state(untrack(() => titleOf(body, fallback)))
-  let prose = $state(untrack(() => proseOf(body)))
+  let prose = $state(untrack(() => proseOf(body, fieldNames)))
   const values = $state<Record<string, string>>(
     untrack(() => {
       const f = extractFields(body, schema).fields

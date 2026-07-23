@@ -45,13 +45,17 @@
 </script>
 
 <div class="bin">
-  <button class="prow head" onclick={() => (open = !open)}>
-    <Icon name={open ? 'chevron-down' : 'chevron-right'} size={13} />
-    <Icon name="terminal" size={14} />
-    <span class="label">bin</span>
+  <div class="prow head">
+    <button class="headtoggle" onclick={() => (open = !open)}>
+      <Icon name={open ? 'chevron-down' : 'chevron-right'} size={13} />
+      <Icon name="terminal" size={14} />
+      <span class="label">bin</span>
+    </button>
     <span class="grow"></span>
-    <Icon name="refresh-cw" size={12} />
-  </button>
+    <button class="refresh" title="Refresh bin" onclick={() => void loadBin()}>
+      <Icon name="refresh-cw" size={12} />
+    </button>
+  </div>
   {#if open}
     {#if binState.entries.length === 0}
       <p class="empty">{binState.loaded ? 'no files' : 'loading…'}</p>
@@ -122,9 +126,39 @@
   .prow.file.exec {
     color: #3fb950; /* executable bit set */
   }
-  .prow.file:hover,
-  .prow.head:hover {
+  .prow.file:hover {
     background: var(--panel-2);
+  }
+  .prow.head {
+    gap: 0;
+    padding: 4px 6px;
+  }
+  .headtoggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+  }
+  .headtoggle:hover,
+  .refresh:hover {
+    color: var(--accent);
+  }
+  .refresh {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px;
   }
   .prow.active {
     background: var(--panel-2);

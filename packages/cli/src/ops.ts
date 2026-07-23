@@ -116,7 +116,11 @@ export const ops: OpTree = defineOps({
     },
     read: {
       input: z.object({ slug: z.string() }),
-      handler: (i, ctx) => recordRead(corpus(ctx), i.slug),
+      handler: (i, ctx) => {
+        const rec = recordRead(corpus(ctx), i.slug)
+        if (rec === undefined) throw new Error(`no such record: ${i.slug}`)
+        return rec
+      },
     },
     create: {
       input: z.object({
@@ -127,6 +131,8 @@ export const ops: OpTree = defineOps({
       handler: (i, ctx) => {
         const slug = `${i.collection}/${slugify(i.title)}`
         const c = corpus(ctx)
+        // Never silently replace an existing record with an empty scaffold.
+        if (c[`${slug}.md`] !== undefined) throw new Error(`already exists: ${slug}`)
         let md: string
         if (i.template) {
           const inst = instantiateTemplate(
@@ -157,6 +163,7 @@ export const ops: OpTree = defineOps({
     remove: {
       input: z.object({ slug: z.string() }),
       handler: (i, ctx) => {
+        if (corpus(ctx)[`${i.slug}.md`] === undefined) throw new Error(`no such record: ${i.slug}`)
         rmSync(join(ctx.spaceDir, `${i.slug}.md`))
         gitCommitAll(ctx.spaceDir, `grove: remove ${i.slug}`)
         return { slug: i.slug, removed: true }

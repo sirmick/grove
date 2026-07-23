@@ -52,6 +52,10 @@ function statusOf(data: Record<string, unknown>): Status {
   return data._status === 'review' ? 'review' : 'verified'
 }
 
+// Row keys grove owns; a same-named extracted field must never overwrite them (else a record with
+// `**Path:** ../../x` or `**Status:** hacked` would poison hrefs, fs reads, and the status union).
+const RESERVED_ROW_KEYS = new Set(['slug', 'title', 'path', 'status', 'lastEdited', 'gitCommit'])
+
 function rowFor(
   corpus: Corpus,
   path: string,
@@ -60,13 +64,16 @@ function rowFor(
   const { data, body } = parseFrontmatter(corpus[path] ?? '')
   const slug = path.slice(0, -3)
   const { fields, warnings } = extractFields(body, schema)
+  const safeFields = Object.fromEntries(
+    Object.entries(fields).filter(([k]) => !RESERVED_ROW_KEYS.has(k)),
+  )
   const row: RecordRow = {
+    ...safeFields,
     slug,
     title: titleOf(body, slug.split('/').pop() ?? slug),
     path,
     status: statusOf(data),
     lastEdited: '',
-    ...fields,
   }
   return { row, warnings }
 }

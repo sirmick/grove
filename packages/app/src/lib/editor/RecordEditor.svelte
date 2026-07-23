@@ -11,19 +11,22 @@
 
   let { slug }: { slug: string } = $props()
 
-  const rec = untrack(() => grove.records.read(slug)) as RecordDetail
+  const rec = untrack(() => grove.records.read(slug)) as RecordDetail | undefined
   const schema: SchemaHint = untrack(() => grove.schema.get(dirOf(slug)))
   const links = untrack(() => grove.search.slugs())
 
   // Single source of truth: the markdown body (after frontmatter). The view (Document/Form/Source,
   // chosen in the top bar) is keyed by editor.mode; switching remounts from the current body.
-  let body = $state(rec.body)
+  let body = $state(rec?.body ?? '')
   function setBody(b: string) {
     body = b
-    setDraft(`${slug}.md`, composeFile(rec.frontmatter, b), currentHead())
+    setDraft(`${slug}.md`, composeFile(rec?.frontmatter, b), currentHead())
   }
 </script>
 
+{#if !rec}
+  <p class="muted missing">Not found: {slug} — it may have been deleted or moved.</p>
+{:else}
 <div class="editor" class:full={editor.mode !== 'form'}>
   {#if editor.mode === 'document'}
     <Wysiwyg content={body} {links} sourceSlug={slug} onchange={setBody} />
@@ -33,8 +36,12 @@
     <CodeEditor value={body} language="markdown" onchange={setBody} />
   {/if}
 </div>
+{/if}
 
 <style>
+  .missing {
+    padding: 20px;
+  }
   .editor {
     flex: 1;
     min-width: 0;

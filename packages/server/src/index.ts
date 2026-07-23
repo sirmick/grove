@@ -145,9 +145,17 @@ const dirOfSpace = (name: string): string | undefined =>
   listSpaces().find((s) => s.name === name)?.dir
 
 // Resolve the request's space from the grove_space cookie (validated against the list), else default.
+// A malformed cookie value (bad %xx) must not throw — it just falls back to the default space.
 function spaceFromCookie(cookie: string | undefined): string {
   const m = /(?:^|;\s*)grove_space=([^;]+)/.exec(cookie ?? '')
-  const name = m?.[1] ? decodeURIComponent(m[1]) : ''
+  let name = ''
+  if (m?.[1]) {
+    try {
+      name = decodeURIComponent(m[1])
+    } catch {
+      name = ''
+    }
+  }
   return name && dirOfSpace(name) ? name : defaultSpace()
 }
 
@@ -164,15 +172,17 @@ function broadcast(space: string, m: DbMeta) {
   for (const l of set) l(payload)
 }
 
-// Lazy registry: build + watch a space on first access, then cache.
+// Lazy registry: build + watch a space on first access, then cache. Keyed by the RESOLVED dir (not
+// the name) so a same-named space appearing at a different root — e.g. after the first copy is
+// deleted — is built and watched rather than served stale from a prior dir's cache.
 const built = new Set<string>()
 function ensure(name: string): string {
   const dir = dirOfSpace(name)
   if (!dir) throw new Error(`unknown space: ${name}`)
-  if (!built.has(name)) {
+  if (!built.has(dir)) {
     buildSpace(dir)
     watchSpace(dir, (m) => broadcast(name, m))
-    built.add(name)
+    built.add(dir)
   }
   return dir
 }
@@ -182,7 +192,10 @@ const reqSpace = (cookie: string | undefined): { name: string; dir: string } => 
   return { name, dir: ensure(name) }
 }
 
-ensure(defaultSpace()) // build + watch the default space on boot
+// Build + watch the default space on boot — but only if one exists; an empty roots set must not
+// crash the server (requests then 404 until a space appears).
+if (listSpaces().length > 0) ensure(defaultSpace())
+else process.stdout.write('grove: no spaces found in the configured roots — nothing to serve yet\n')
 
 const app = new Hono()
 
@@ -211,10 +224,25 @@ app.get('/db/*', (c) => {
   }
 })
 
-// A space-relative path is safe iff it stays inside the space dir and is a markdown/yaml file.
+// Decode a URL path segment; returns null on a malformed escape (so a bad %xx never throws and 500s).
+function safeDecode(s: string): string | null {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return null
+  }
+}
+
+// A space-relative path is safe iff it stays inside the space dir, is a markdown/yaml file, and
+// doesn't reach into git internals or the derived db/ (record markdown/yaml never lives there).
 function safeTarget(dir: string, rel: string): string | null {
   const target = resolve(dir, rel)
-  if (!target.startsWith(dir + sep) || rel.includes('..') || !/\.(md|ya?ml)$/.test(rel)) {
+  if (
+    !target.startsWith(dir + sep) ||
+    rel.includes('..') ||
+    !/\.(md|ya?ml)$/.test(rel) ||
+    /(^|\/)(\.git|db)(\/|$)/.test(rel)
+  ) {
     return null
   }
   return target
@@ -223,7 +251,8 @@ function safeTarget(dir: string, rel: string): string | null {
 // Dev write endpoint. Atomic, path-safe; commits in place + respins + broadcasts.
 app.put('/incoming/*', async (c) => {
   const { name, dir } = reqSpace(c.req.header('cookie'))
-  const rel = decodeURIComponent(c.req.path.replace(/^\/incoming\//, ''))
+  const rel = safeDecode(c.req.path.replace(/^\/incoming\//, ''))
+  if (rel === null) return c.text('bad path', 400)
   const target = safeTarget(dir, rel)
   if (!target) return c.text('bad path', 400)
   const body = await c.req.text()
@@ -241,10 +270,16 @@ app.put('/incoming/*', async (c) => {
 // Conflicts/build failures leave main untouched and report back (drafts are kept).
 app.post('/commit', async (c) => {
   const { name, dir } = reqSpace(c.req.header('cookie'))
-  const body = (await c.req.json()) as { message?: string; files?: Record<string, string> }
+  const body = (await c.req.json()) as {
+    message?: string
+    files?: Record<string, string>
+    base?: string
+  }
   const files = body.files ?? {}
   if (Object.keys(files).some((rel) => !safeTarget(dir, rel))) return c.text('bad path', 400)
-  const res = commitChangeset(dir, files, body.message ?? 'grove: update')
+  // Only accept a base that looks like a git object id (or 'dev'); never let it reach git as flags.
+  const base = body.base && /^[0-9a-f]{7,40}$/i.test(body.base) ? body.base : undefined
+  const res = commitChangeset(dir, files, body.message ?? 'grove: update', base)
   if (!res.ok) {
     return c.json({ ok: false, conflicts: res.conflicts, error: res.error }, 409)
   }
@@ -265,23 +300,59 @@ function insideSpace(dir: string, rel: string): boolean {
   return !rel.includes('..') && resolve(dir, rel).startsWith(dir + sep)
 }
 
+// Space-relative paths grove owns; a re-file must never move one of these, move INTO one, or touch
+// anything under them (the derived db/, git internals, space/collection config, the bin scripts).
+const PROTECTED_SEGMENTS = new Set(['.git', 'db', '_grove', 'bin'])
+function touchesProtected(rel: string): boolean {
+  return rel.split('/').some((seg) => PROTECTED_SEGMENTS.has(seg))
+}
+
+// A valid re-file destination is the space root ('') or an existing directory that is itself a real
+// collection (or the space root) — never a plain file, and never db/_grove/.git/bin.
+function isValidDest(dir: string, destRel: string): boolean {
+  if (destRel === '') return true
+  if (destRel.includes('..') || touchesProtected(destRel)) return false
+  const abs = resolve(dir, destRel)
+  if (!abs.startsWith(dir + sep)) return false
+  try {
+    return statSync(abs).isDirectory() && existsSync(join(abs, '_grove'))
+  } catch {
+    return false
+  }
+}
+
 // Compute the on-disk {from,to} for one re-file, or null if it's invalid (escapes the space,
-// missing source, would clobber, or a no-op). dest is the target collection path ('' = root).
+// missing source, would clobber, targets protected internals, or a no-op). dest is the target
+// collection path ('' = root).
 function moveTarget(
   dir: string,
   item: MoveItem,
   dest: string,
 ): { from: string; to: string } | null {
+  if (item.type !== 'record' && item.type !== 'collection') return null
   const destRel = dest.replace(/^\/+|\/+$/g, '')
-  if (destRel && !existsSync(resolve(dir, destRel))) return null
-  const base = item.id.split('/').pop() ?? item.id
-  const from = item.type === 'record' ? `${item.id}.md` : item.id
+  if (!isValidDest(dir, destRel)) return null
+  const idRel = item.id.replace(/^\/+|\/+$/g, '')
+  if (!idRel || idRel.includes('..') || touchesProtected(idRel)) return null
+  const base = idRel.split('/').pop() ?? idRel
+  const from = item.type === 'record' ? `${idRel}.md` : idRel
   const toBase = item.type === 'record' ? `${base}.md` : base
   const to = destRel ? `${destRel}/${toBase}` : toBase
   if (from === to) return null
   if (item.type === 'collection' && (to === from || to.startsWith(`${from}/`))) return null // into self/descendant
+  if (touchesProtected(to)) return null
   if (!insideSpace(dir, from) || !insideSpace(dir, to)) return null
-  if (!existsSync(resolve(dir, from)) || existsSync(resolve(dir, to))) return null
+  // The source must be the right kind: a record .md file, or a collection directory (has _grove).
+  const fromAbs = resolve(dir, from)
+  if (!existsSync(fromAbs) || existsSync(resolve(dir, to))) return null
+  try {
+    const st = statSync(fromAbs)
+    if (item.type === 'record' && !st.isFile()) return null
+    if (item.type === 'collection' && !(st.isDirectory() && existsSync(join(fromAbs, '_grove'))))
+      return null
+  } catch {
+    return null
+  }
   return { from, to }
 }
 
@@ -297,9 +368,24 @@ app.post('/move', async (c) => {
     if (!m) return c.json({ ok: false, error: `cannot move ${it.id} → ${dest || '(root)'}` }, 400)
     moves.push(m)
   }
-  for (const m of moves) {
-    mkdirSync(dirname(resolve(dir, m.to)), { recursive: true })
-    renameSync(resolve(dir, m.from), resolve(dir, m.to))
+  // Apply atomically-ish: on any failure, roll back the renames already done so a partial move never
+  // leaves the space dirty and unrebuilt.
+  const done: { from: string; to: string }[] = []
+  try {
+    for (const m of moves) {
+      mkdirSync(dirname(resolve(dir, m.to)), { recursive: true })
+      renameSync(resolve(dir, m.from), resolve(dir, m.to))
+      done.push(m)
+    }
+  } catch (e) {
+    for (const m of done.reverse()) {
+      try {
+        renameSync(resolve(dir, m.to), resolve(dir, m.from))
+      } catch {
+        // best-effort rollback
+      }
+    }
+    return c.json({ ok: false, error: `move failed: ${(e as Error).message}` }, 500)
   }
   gitCommitAll(dir, `grove: move ${moves.map((m) => `${m.from} → ${m.to}`).join(', ')}`)
   broadcast(name, buildSpace(dir))
@@ -311,15 +397,19 @@ app.post('/move', async (c) => {
 // Binary-safe; path-safe; one git commit + rebuild per file (mirrors /incoming).
 const UPLOAD_EXT = /\.(md|markdown|ya?ml|txt|csv|tsv|json|png|jpe?g|gif|svg|webp|pdf)$/i
 function safeUploadTarget(dir: string, rel: string): string | null {
-  if (!insideSpace(dir, rel) || !UPLOAD_EXT.test(rel)) return null
+  if (!insideSpace(dir, rel) || !UPLOAD_EXT.test(rel) || touchesProtected(rel)) return null
   return resolve(dir, rel)
 }
 
 app.put('/upload/*', async (c) => {
   const { name, dir } = reqSpace(c.req.header('cookie'))
-  const rel = decodeURIComponent(c.req.path.replace(/^\/upload\//, ''))
+  const rel = safeDecode(c.req.path.replace(/^\/upload\//, ''))
+  if (rel === null) return c.text('bad path', 400)
   const target = safeUploadTarget(dir, rel)
   if (!target) return c.text('bad path or unsupported type', 400)
+  // A dropped file must never silently replace an existing record/asset — refuse and let the client
+  // surface it (git is the only recovery for a clobber otherwise).
+  if (existsSync(target)) return c.json({ ok: false, error: `already exists: ${rel}` }, 409)
   const buf = Buffer.from(await c.req.arrayBuffer())
   if (!buf.length) return c.text('empty body', 400)
   mkdirSync(dirname(target), { recursive: true })
@@ -472,8 +562,8 @@ const ASSET_MIME: Record<string, string> = {
 }
 app.get('/assets/*', (c) => {
   const { dir } = reqSpace(c.req.header('cookie'))
-  const rel = decodeURIComponent(c.req.path.replace(/^\/assets\//, ''))
-  if (rel.includes('..')) return c.text('bad path', 400)
+  const rel = safeDecode(c.req.path.replace(/^\/assets\//, ''))
+  if (rel === null || rel.includes('..')) return c.text('bad path', 400)
   const abs = resolve(dir, rel)
   if (abs !== dir && !abs.startsWith(dir + sep)) return c.text('bad path', 400)
   if (/(^|\/)(\.git|db)(\/|$)/.test(rel)) return c.text('forbidden', 403)
@@ -513,15 +603,29 @@ app.post('/exec', async (c) => {
       cwd: ROOT,
       env: { ...process.env, GROVE_SPACE: dir },
     })
-    let stdout = ''
-    let stderr = ''
-    cp.stdout.on('data', (d) => {
-      stdout += d
-    })
-    cp.stderr.on('data', (d) => {
-      stderr += d
-    })
-    cp.on('close', (code) => resolveResp(c.json({ code, stdout, stderr })))
+    const chunks: { out: Buffer[]; err: Buffer[] } = { out: [], err: [] }
+    let settled = false
+    const done = (r: Response) => {
+      if (!settled) {
+        settled = true
+        resolveResp(r)
+      }
+    }
+    cp.stdout.on('data', (d: Buffer) => chunks.out.push(d))
+    cp.stderr.on('data', (d: Buffer) => chunks.err.push(d))
+    // Without an 'error' handler a failed spawn (pnpm not on PATH, EACCES) never emits 'close', so
+    // the promise — and the HTTP request — would hang forever. Decode as whole Buffers so multibyte
+    // UTF-8 split across chunks isn't mangled.
+    cp.on('error', (e) => done(c.json({ code: null, stdout: '', stderr: String(e) }, 500)))
+    cp.on('close', (code) =>
+      done(
+        c.json({
+          code,
+          stdout: Buffer.concat(chunks.out).toString('utf8'),
+          stderr: Buffer.concat(chunks.err).toString('utf8'),
+        }),
+      ),
+    )
   })
 })
 
