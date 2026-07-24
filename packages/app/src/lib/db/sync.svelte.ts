@@ -77,9 +77,10 @@ export async function reconcile() {
   await applyReload()
 }
 
-export async function commitAll(): Promise<void> {
+export async function commitAll(message?: string): Promise<void> {
   const entries = Object.entries(draftsState.map)
   if (entries.length === 0) return
+  const subject = message?.trim() || `grove: ${entries.length} file(s)`
 
   syncState.status = 'committing'
   syncState.message = ''
@@ -100,7 +101,7 @@ export async function commitAll(): Promise<void> {
     const r = await fetch('/commit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: `grove: ${entries.length} file(s)`, files, base }),
+      body: JSON.stringify({ message: subject, files, base }),
     })
     const res = (await r.json().catch(() => ({}))) as {
       ok?: boolean

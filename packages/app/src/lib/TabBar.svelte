@@ -8,8 +8,9 @@
     instantiateTemplate,
     slugify,
   } from '@grove/core'
-  import { draftCount, hasDraft, setDraft } from './db/drafts.svelte'
-  import { type SyncStatus, commitAll, currentHead, isBusy, syncState } from './db/sync.svelte'
+  import CommitMenu from './CommitMenu.svelte'
+  import { hasDraft, setDraft } from './db/drafts.svelte'
+  import { type SyncStatus, currentHead, syncState } from './db/sync.svelte'
   import { grove } from './grove/client'
   import Icon from './icons/Icon.svelte'
   import { activeTab, closeTab, openCollection, openRecord, setActive, tabsState } from './state.svelte'
@@ -139,13 +140,7 @@
       </div>
     </details>
 
-    <button
-      class="btn primary"
-      disabled={draftCount() === 0 || isBusy()}
-      title={syncState.status === 'error' ? syncState.message : 'Commit all drafts'}
-      onclick={() => void commitAll()}>
-      <Icon name="save" size={15} /> Save ({draftCount()})
-    </button>
+    <CommitMenu />
   </div>
 </div>
 
