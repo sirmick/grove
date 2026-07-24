@@ -3,7 +3,13 @@
 import { createHash } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { type SchemaHint, composeMarkdown, resolveSchema, slugify } from '@grove/core'
+import {
+  type SchemaHint,
+  composeMarkdown,
+  parseFrontmatter,
+  resolveSchema,
+  slugify,
+} from '@grove/core'
 import { loadCorpusFromDir } from '@grove/core/node'
 
 const MODEL = 'claude-opus-4-8'
@@ -48,6 +54,7 @@ export function toJsonSchema(schema: SchemaHint): Record<string, unknown> {
 
 async function defaultFetchText(source: string): Promise<string> {
   const res = await fetch(source)
+  if (!res.ok) throw new Error(`fetch ${source} failed: HTTP ${res.status}`)
   const text = await res.text()
   return text
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -101,6 +108,14 @@ export async function ingestSource(opts: {
 
   const title = String(data.title ?? opts.source)
   const slug = `${opts.collection}/${slugify(title)}`
+  // Don't let an ingested draft silently replace a hand-authored (verified) record with the same
+  // slug — that would clobber real content and downgrade it to review status.
+  const existing = corpus[`${slug}.md`]
+  if (existing !== undefined && parseFrontmatter(existing).data._status !== 'review') {
+    throw new Error(
+      `refusing to overwrite existing record: ${slug} (delete it first or ingest under a new title)`,
+    )
+  }
   const fields = Object.keys(schema.fields).map((k) => [k, data[k]] as [string, unknown])
   const md = composeMarkdown({
     title,

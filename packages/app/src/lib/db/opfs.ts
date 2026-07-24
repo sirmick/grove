@@ -34,3 +34,13 @@ export async function writeText(name: string, text: string): Promise<void> {
     // ignore
   }
 }
+
+export async function removeText(name: string): Promise<void> {
+  try {
+    const d = await dir()
+    if (!d) return
+    await d.removeEntry(name)
+  } catch {
+    // not present / no OPFS — nothing to do
+  }
+}

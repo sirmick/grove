@@ -4,7 +4,7 @@
   // setContent (NOT the constructor `content`) because tiptap-markdown's parser hooks onto
   // setContent in TipTap v3. The formatting bar + internal-link picker live here (Source view
   // stays bare markdown).
-  import { markdownHrefForSlug } from '@grove/core'
+  import { markdownHrefForSlug, separateBlockLines, unescapeWikilinks } from '@grove/core'
   import { Editor } from '@tiptap/core'
   import StarterKit from '@tiptap/starter-kit'
   import { onMount } from 'svelte'
@@ -23,8 +23,9 @@
   let tick = $state(0) // bumped on every transaction so toolbar active-state stays reactive
   let pick = $state('')
 
+  // TipTap escapes `[`/`]`, which would corrupt `[[wikilinks]]`; restore them on the way out.
   const getMd = (e: Editor): string =>
-    (e.storage as { markdown?: { getMarkdown(): string } }).markdown?.getMarkdown() ?? ''
+    unescapeWikilinks((e.storage as { markdown?: { getMarkdown(): string } }).markdown?.getMarkdown() ?? '')
 
   const isOn = (name: string, attrs?: Record<string, unknown>) => {
     void tick
@@ -58,7 +59,9 @@
         tick++
       },
     })
-    ed.commands.setContent(content, { emitUpdate: false })
+    // Blank-line-separate heading/field lines so TipTap keeps them as distinct paragraphs instead
+    // of merging them (which would collapse the house format's `**Field:**` lines into one).
+    ed.commands.setContent(separateBlockLines(content), { emitUpdate: false })
     editor = ed
     return () => ed.destroy()
   })

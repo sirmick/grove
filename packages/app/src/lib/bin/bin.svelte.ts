@@ -20,9 +20,12 @@ export async function loadBin() {
     if (!r.ok) return
     const d = (await r.json()) as { entries: FsEntry[] }
     binState.entries = Array.isArray(d.entries) ? d.entries : []
-    binState.loaded = true
   } catch {
     // offline / unauthorized — leave whatever we had
+  } finally {
+    // Mark loaded even on failure so the view stops showing "loading…" forever and the manual
+    // refresh becomes the way to retry.
+    binState.loaded = true
   }
 }
 

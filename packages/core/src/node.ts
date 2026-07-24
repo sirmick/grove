@@ -655,8 +655,18 @@ export interface CommitResult {
   error?: string
 }
 
-/** Take out a change: a fresh worktree on a new branch off the current HEAD. */
-export function beginChange(spaceDir: string): Change {
+function isValidRev(spaceDir: string, rev: string): boolean {
+  try {
+    git(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], spaceDir)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Take out a change: a fresh worktree on a new branch. Branches off `base` when given a valid
+ *  commit (so a stale edit conflicts against an advanced HEAD on merge); otherwise off HEAD. */
+export function beginChange(spaceDir: string, base?: string): Change {
   ensureGitRepo(spaceDir)
   if (!managedByEnclosing(spaceDir) && !hasHeadCommit(spaceDir)) {
     gitCommitAll(spaceDir, 'grove: init space')
@@ -664,9 +674,14 @@ export function beginChange(spaceDir: string): Change {
   const id = randomUUID().slice(0, 8)
   const wt = worktreePath(id)
   mkdirSync(dirname(wt), { recursive: true })
-  git(['worktree', 'add', '--quiet', '-b', `change/${id}`, wt, 'HEAD'], spaceDir)
+  const from = base && isValidRev(spaceDir, base) ? base : 'HEAD'
+  git(['worktree', 'add', '--quiet', '-b', `change/${id}`, wt, from], spaceDir)
   installGitHooksBestEffort(wt)
-  return { id, worktree: wt, base: headCommit(spaceDir) }
+  return {
+    id,
+    worktree: wt,
+    base: from === 'HEAD' ? headCommit(spaceDir) : (base ?? headCommit(spaceDir)),
+  }
 }
 
 /** Write a file into a change's worktree (atomic). */
@@ -766,16 +781,39 @@ export function abortChange(spaceDir: string, id: string) {
   removeWorktree(spaceDir, id)
 }
 
-/** One-shot transaction used by the UI Commit and CLI: begin → write files → commit. */
+// Which of `files` were modified in the space between `base` and HEAD — i.e. changed underneath
+// the draft since it was taken. A non-empty result means committing would clobber that change.
+function filesChangedSince(spaceDir: string, base: string, files: string[]): string[] {
+  if (!isValidRev(spaceDir, base)) return []
+  try {
+    const out = git(['diff', '--name-only', `${base}..HEAD`, '--', ...files], spaceDir)
+    const prefix = spacePrefix(spaceDir)
+    return out
+      .split('\n')
+      .filter(Boolean)
+      .map((p) => (prefix && p.startsWith(`${prefix}/`) ? p.slice(prefix.length + 1) : p))
+  } catch {
+    return []
+  }
+}
+
+/** One-shot transaction used by the UI Commit and CLI: begin → write files → commit. When `base`
+ *  is given, a concurrent modification of any target file since that commit is reported as a
+ *  conflict instead of being silently overwritten. */
 export function commitChangeset(
   spaceDir: string,
   files: Record<string, string>,
   message: string,
+  base?: string,
 ): CommitResult {
   // In-repo (managed) space: commit straight to the enclosing repo, scoped to the space — no
   // worktree (history belongs to the enclosing repo). Mirrors the /incoming write+commit+respin.
   if (managedByEnclosing(spaceDir)) {
     try {
+      if (base) {
+        const conflicts = filesChangedSince(spaceDir, base, Object.keys(files))
+        if (conflicts.length) return { ok: false, conflicts }
+      }
       for (const [rel, content] of Object.entries(files)) {
         const target = join(spaceDir, rel)
         mkdirSync(dirname(target), { recursive: true })
@@ -790,8 +828,9 @@ export function commitChangeset(
       return { ok: false, error: (e as Error).message }
     }
   }
-  // Standalone space repo: the build-gated worktree transaction.
-  const ch = beginChange(spaceDir)
+  // Standalone space repo: the build-gated worktree transaction, branched from the draft's base so
+  // a real 3-way merge surfaces conflicts against an advanced HEAD.
+  const ch = beginChange(spaceDir, base)
   for (const [rel, content] of Object.entries(files)) writeToChange(ch.worktree, rel, content)
   return commitChange(spaceDir, ch.id, message)
 }

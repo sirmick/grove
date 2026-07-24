@@ -1,3 +1,5 @@
+import { maskCode } from '@grove/core'
+import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 
 // ```dot / ```graphviz / ```mermaid fences become empty placeholders; diagrams.ts renders them to
@@ -63,7 +65,8 @@ marked.use({
     link({ href, text }) {
       if (!href || isExternal(href)) return false
       const resolved = resolveRel(currentBase, href)
-      if (/\.(md|markdown)$/i.test(href)) {
+      const path = href.replace(/[?#].*$/, '')
+      if (/\.(md|markdown)$/i.test(path)) {
         const slug = resolved.replace(/\.(md|markdown)$/i, '')
         return `<a class="rellink" data-slug="${escapeAttr(slug)}" href="#${escapeAttr(slug)}">${escapeHtml(text)}</a>`
       }
@@ -82,17 +85,34 @@ marked.use({
 })
 
 // Turn `[[slug]]` / `[[slug|display]]` into inline clickable links (project-relative slug in
-// data-slug; DocView intercepts .wikilink clicks to navigate). marked passes the inline HTML through.
+// data-slug; DocView intercepts .wikilink clicks to navigate). marked passes the inline HTML
+// through. Wikilinks inside code fences/spans are left as literal text (documentation examples).
 function rewriteWikilinks(src: string): string {
-  return src.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, slug: string, display?: string) => {
-    const s = slug.trim()
-    const label = display ?? s.split('/').pop() ?? s
-    return `<a class="wikilink" data-slug="${escapeAttr(s)}" href="#${escapeAttr(s)}">${escapeHtml(label)}</a>`
-  })
+  const masked = maskCode(src)
+  return src.replace(
+    /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+    (m, slug: string, display: string, offset: number) => {
+      if (masked.slice(offset, offset + 2) !== '[[') return m // inside code → leave as-is
+      const s = slug.trim()
+      const label = display ?? s.split('/').pop() ?? s
+      return `<a class="wikilink" data-slug="${escapeAttr(s)}" href="#${escapeAttr(s)}">${escapeHtml(label)}</a>`
+    },
+  )
 }
 
-/** Render markdown to HTML. baseSlug is the doc's slug, used to resolve doc-relative links/images. */
+// Attributes our own renderers emit that DOMPurify would otherwise strip; data-* and class are kept
+// by default. `target`/`rel` (svg embeds open in a new tab) and `loading` (lazy images) are added.
+const SANITIZE_CONFIG = { ADD_ATTR: ['target', 'rel', 'loading'] }
+
+/** Render markdown to HTML, then sanitize — record/overview content is untrusted (imported docs,
+ *  AI output, cloned spaces), and the result is injected via `{@html}` into a session that can
+ *  reach /exec and /pty, so raw `<img onerror>` / `<script>` must be stripped. baseSlug resolves
+ *  doc-relative links/images. */
 export function renderMarkdown(src: string, baseSlug = ''): string {
   currentBase = baseSlug
-  return marked.parse(rewriteWikilinks(src), { async: false }) as string
+  const html = marked.parse(rewriteWikilinks(src), { async: false }) as string
+  // DOMPurify needs a DOM; in any non-browser context (should not happen for this FE-only path)
+  // fall back to returning the unsanitized string rather than throwing.
+  if (typeof window === 'undefined') return html
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG)
 }

@@ -12,6 +12,7 @@
 
   const rec = $derived(grove.records.read(slug))
   const links = $derived(grove.links.of(slug))
+  const fieldLabels = $derived(Object.keys(grove.schema.get(dirOf(slug)).fields))
 
   const SYSTEM = new Set(['slug', 'title', 'path', 'status', 'lastEdited', 'gitCommit', 'gitMessage'])
   const fields = $derived(
@@ -29,7 +30,12 @@
     delete fm._status
     setDraft(
       `${slug}.md`,
-      composeMarkdown({ title: r.meta.title, fields: f, body: proseOf(r.body), frontmatter: fm }),
+      composeMarkdown({
+        title: r.meta.title,
+        fields: f,
+        body: proseOf(r.body, Object.keys(grove.schema.get(dirOf(slug)).fields)),
+        frontmatter: fm,
+      }),
       currentHead(),
     )
     void commitAll()
@@ -71,7 +77,7 @@
 
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="body" use:diagrams={rec.body} onclick={onBodyClick}>
-      {@html renderMarkdown(proseOf(rec.body), slug)}
+      {@html renderMarkdown(proseOf(rec.body, fieldLabels), slug)}
     </div>
 
     <section class="links">

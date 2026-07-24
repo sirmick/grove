@@ -53,6 +53,20 @@ export function clearAllDrafts() {
   persist()
 }
 
+/**
+ * Clear only the drafts that were just committed, and only if they haven't been re-edited since.
+ * `committed` maps path → the updatedAt captured when the commit request was sent; a draft whose
+ * current updatedAt differs was typed into while the commit was in flight, so it's kept.
+ */
+export function clearCommittedDrafts(committed: Record<string, number>) {
+  const next = { ...draftsState.map }
+  for (const [path, at] of Object.entries(committed)) {
+    if (next[path]?.updatedAt === at) delete next[path]
+  }
+  draftsState.map = next
+  persist()
+}
+
 export function hasDraft(path: string): boolean {
   return path in draftsState.map
 }

@@ -39,11 +39,40 @@ function parseValue(raw: string): string | number | boolean {
   return s
 }
 
-const CLAUSE_RE = /^([\w.]+)\s*(>=|<=|!=|~|=|>|<)\s*(.+)$/
+const CLAUSE_RE = /^([\w.-]+)\s*(>=|<=|!=|~|=|>|<)\s*(.+)$/
+
+// Split on ` and ` but not inside quotes, so `title~"rock and roll"` stays one clause. The split
+// runs against a quote-masked copy, then slices are taken from the original.
+function splitClauses(expr: string): string[] {
+  const masked = maskQuoted(expr)
+  const parts: string[] = []
+  let last = 0
+  for (const m of masked.matchAll(/\s+and\s+/gi)) {
+    if (m.index === undefined) continue
+    parts.push(expr.slice(last, m.index))
+    last = m.index + m[0].length
+  }
+  parts.push(expr.slice(last))
+  return parts
+}
+
+// Blank the *contents* of quoted spans (keeping the quotes and length) so a separator scan can't
+// match a keyword that lives inside a value.
+function maskQuoted(s: string): string {
+  const out = s.split('')
+  let quote = ''
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (quote) {
+      if (c === quote) quote = ''
+      else out[i] = ' '
+    } else if (c === '"' || c === "'") quote = c
+  }
+  return out.join('')
+}
 
 export function parseWhere(expr: string): Filter[] {
-  return expr
-    .split(/\s+and\s+/i)
+  return splitClauses(expr)
     .map((c) => c.trim())
     .filter(Boolean)
     .map((clause) => {
@@ -53,6 +82,8 @@ export function parseWhere(expr: string): Filter[] {
     })
 }
 
+const AGG_FNS = new Set<AggFn>(['count', 'sum', 'avg', 'min', 'max'])
+
 export function parseAgg(expr: string): Aggregate[] {
   return expr
     .split(',')
@@ -60,24 +91,40 @@ export function parseAgg(expr: string): Aggregate[] {
     .filter(Boolean)
     .map((tok) => {
       const [fn, field] = tok.split(':').map((x) => x.trim())
+      if (!fn || !AGG_FNS.has(fn as AggFn)) throw new Error(`unknown aggregate: "${tok}"`)
       return { fn: fn as AggFn, field: field || undefined }
     })
 }
 
+// A value that looks numeric (a number, or a string of only digits/decimal/sign) → its number, so
+// a string-typed column still compares numerically against a numeric filter.
+function asNumber(x: unknown): number | undefined {
+  if (typeof x === 'number') return Number.isNaN(x) ? undefined : x
+  if (typeof x === 'string' && /^-?\d+(\.\d+)?$/.test(x.trim())) return Number(x)
+  return undefined
+}
+
 function cmp(a: unknown, b: unknown): number {
-  if (typeof a === 'number' && typeof b === 'number') return a - b
+  const na = asNumber(a)
+  const nb = asNumber(b)
+  if (na !== undefined && nb !== undefined) return na - nb
   if (a === undefined || a === null) return b === undefined || b === null ? 0 : -1
   if (b === undefined || b === null) return 1
   return String(a).localeCompare(String(b))
 }
 
 function looseEq(a: unknown, b: unknown): boolean {
-  if (typeof a === 'number' && typeof b === 'number') return a === b
+  const na = asNumber(a)
+  const nb = asNumber(b)
+  if (na !== undefined && nb !== undefined) return na === nb
   return String(a).toLowerCase() === String(b).toLowerCase()
 }
 
 function matches(row: Row, f: Filter): boolean {
   const v = row[f.field]
+  // A row that has no value for the field never satisfies a comparison/order filter (a typo'd or
+  // absent field should match nothing here rather than every row).
+  const absent = v === undefined || v === null || v === ''
   switch (f.op) {
     case '=':
       return looseEq(v, f.value)
@@ -88,13 +135,13 @@ function matches(row: Row, f: Filter): boolean {
         .toLowerCase()
         .includes(String(f.value).toLowerCase())
     case '>':
-      return cmp(v, f.value) > 0
+      return !absent && cmp(v, f.value) > 0
     case '>=':
-      return cmp(v, f.value) >= 0
+      return !absent && cmp(v, f.value) >= 0
     case '<':
-      return cmp(v, f.value) < 0
+      return !absent && cmp(v, f.value) < 0
     case '<=':
-      return cmp(v, f.value) <= 0
+      return !absent && cmp(v, f.value) <= 0
   }
 }
 
