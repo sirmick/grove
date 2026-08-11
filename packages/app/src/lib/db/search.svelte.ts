@@ -45,6 +45,15 @@ export function invalidateSearch() {
   indexToken = ''
 }
 
+/** Leaving a space: drop the in-memory index and any on-screen hits, but KEEP the OPFS cache —
+ *  it's keyed by (space, builtAt), so switching back reuses it instead of re-indexing. */
+export function resetSearch() {
+  index = null
+  indexToken = ''
+  searchState.query = ''
+  searchState.results = []
+}
+
 export interface Hit {
   slug: string
   title: string

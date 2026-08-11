@@ -8,6 +8,7 @@
   import '@xterm/xterm/css/xterm.css'
   import { onMount } from 'svelte'
   import { copyText, pasteText } from '../clipboard'
+  import { api } from '../space.svelte'
   import { theme } from '../theme.svelte'
   import { setTermTitle } from './terminals.svelte'
 
@@ -145,7 +146,10 @@
 
     function connect() {
       if (closed || connectedOrConnecting()) return
-      const socket = new WebSocket(`${proto}://${location.host}/pty?sid=${encodeURIComponent(sid)}`)
+      // The space rides on the socket URL: a PTY is keyed by (space, sid) server-side, and this
+      // pane belongs to whichever space was current when it mounted.
+      const path = api(`/pty?sid=${encodeURIComponent(sid)}`)
+      const socket = new WebSocket(`${proto}://${location.host}${path}`)
       ws = socket
       socket.binaryType = 'arraybuffer'
       socket.onmessage = (e) => {

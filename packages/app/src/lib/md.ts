@@ -1,6 +1,7 @@
 import { maskCode } from '@grove/core'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
+import { api } from './space.svelte'
 
 // ```dot / ```graphviz / ```mermaid fences become empty placeholders; diagrams.ts renders them to
 // inline SVG client-side after the HTML mounts (the libs are heavy + async, so they lazy-load and
@@ -34,7 +35,10 @@ function resolveRel(baseSlug: string, target: string): string {
   return out.join('/')
 }
 
-const assetUrl = (rel: string) => `/assets/${rel.split('/').map(encodeURIComponent).join('/')}`
+// Asset URLs are fetched by the browser itself (an <img src>), not by our fetch wrappers, so the
+// space has to be baked into the markup — otherwise a tab viewing space B would pull B's images
+// through whatever space the shared cookie last named.
+const assetUrl = (rel: string) => api(`/assets/${rel.split('/').map(encodeURIComponent).join('/')}`)
 const isExternal = (href: string) => /^(https?:|mailto:|tel:|data:|#)/i.test(href)
 const isSvg = (href: string) => /\.svg(?:[?#]|$)/i.test(href)
 

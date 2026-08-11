@@ -4,6 +4,7 @@
 // follow the file. The respin SSE then reloads the canonical corpus.
 import { clearDraft, draftsState, setDraft } from '../db/drafts.svelte'
 import { corpusState } from '../grove/corpusState.svelte'
+import { apiFetch } from '../space.svelte'
 import { retargetTab, tabsState } from '../state.svelte'
 import type { DragItem } from './dnd'
 
@@ -28,7 +29,7 @@ export async function refile(items: DragItem[], dest: string): Promise<MoveResul
   if (onServer.length) {
     let res: Response
     try {
-      res = await fetch('/move', {
+      res = await apiFetch('/move', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ items: onServer, dest: destRel }),

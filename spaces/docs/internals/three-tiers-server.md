@@ -8,6 +8,8 @@ watcher is always-on.
 
 In multi-space mode, it scans selectable spaces from `GROVE_SPACES_ROOTS`, defaulting to the repo `spaces/` directory plus `~/spaces`. `GROVE_SPACE` still forces single-space mode.
 
+Every request names its space with a `?space=<name>` parameter — fetches, the SSE feed, and the PTY WebSocket alike — validated against that list. The `grove_space` cookie is only a fallback (the seed a freshly-opened browser tab starts from), because a cookie is shared by every tab on the origin: keeping the binding in the URL is what lets two tabs sit in two different spaces, and lets one switch without disturbing the other. Unknown or malformed values fall back to the default space rather than erroring.
+
 ## Read tier (the repo is the API)
 
 - `GET /corpus.json` — the raw `{ path → contents }` map (the FE computes over it).

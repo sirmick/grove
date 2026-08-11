@@ -51,9 +51,10 @@ test('links: relative image serves from /assets; wikilink + relative .md link na
   await expect(page.getByRole('heading', { name: 'E2E Src', level: 1 })).toBeVisible({ timeout: 15000 })
   const body = page.locator('.body')
 
-  // image rewritten to the project-relative asset route, and it actually serves
+  // image rewritten to the project-relative asset route (carrying the tab's space, since the
+  // browser fetches it directly), and it actually serves
   const img = body.locator('img')
-  await expect(img).toHaveAttribute('src', '/assets/notes/pic.png')
+  await expect(img).toHaveAttribute('src', /^\/assets\/notes\/pic\.png\?space=/)
   const asset = await request.get(`${SERVER}/assets/notes/pic.png`)
   expect(asset.status()).toBe(200)
   expect(asset.headers()['content-type']).toContain('image/png')

@@ -4,6 +4,7 @@
 import { noteAuth } from '../auth.svelte'
 import { grove } from '../grove/client'
 import { loadCorpus } from '../grove/corpusState.svelte'
+import { api, apiFetch, currentSpace } from '../space.svelte'
 import { closeByRef, tabsState } from '../state.svelte'
 import { clearCommittedDrafts, draftsState } from './drafts.svelte'
 import { invalidateSearch } from './search.svelte'
@@ -39,7 +40,7 @@ interface MetaLite {
 
 async function fetchMeta(): Promise<MetaLite | null> {
   try {
-    const r = await fetch('/db/meta.json', { cache: 'no-store' })
+    const r = await apiFetch('/db/meta.json', { cache: 'no-store' })
     noteAuth(r)
     return r.ok ? ((await r.json()) as MetaLite) : null
   } catch {
@@ -62,8 +63,12 @@ async function applyReload() {
 }
 
 export async function reconcile() {
+  const space = currentSpace()
   const meta = await fetchMeta()
   if (!meta) return
+  // A switch landed while this was in flight: the reply describes the space we just left, and
+  // applying it here would stamp the new space with a foreign builtAt/head.
+  if (space !== currentSpace()) return
   syncState.headCommit = meta.headCommit
   if (meta.builtAt === syncState.builtAt) return
   const first = syncState.builtAt === ''
@@ -98,7 +103,7 @@ export async function commitAll(message?: string): Promise<void> {
   const bases = new Set(entries.map(([, d]) => d.baseCommit))
   const base = bases.size === 1 && !bases.has('dev') ? entries[0]?.[1].baseCommit : undefined
   try {
-    const r = await fetch('/commit', {
+    const r = await apiFetch('/commit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: subject, files, base }),
@@ -129,16 +134,42 @@ export async function commitAll(message?: string): Promise<void> {
   }
 }
 
+// Live-loop handles, so a space switch can tear the old space's stream down before the new one
+// opens (an SSE connection is bound to the space it was opened with, server-side).
+let events: EventSource | undefined
+let poll: ReturnType<typeof setInterval> | undefined
+let watchingVisibility = false
+
 export function startSync() {
   void reconcile()
   try {
-    const es = new EventSource('/events')
-    es.addEventListener('changed', () => void reconcile())
+    events = new EventSource(api('/events'))
+    events.addEventListener('changed', () => void reconcile())
   } catch {
     // no SSE — rely on poll + focus
   }
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void reconcile()
-  })
-  setInterval(() => void reconcile(), 60000)
+  if (!watchingVisibility) {
+    // Bound once per tab, not per space: it only ever calls reconcile(), which reads the current one.
+    watchingVisibility = true
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) void reconcile()
+    })
+  }
+  poll = setInterval(() => void reconcile(), 60000)
+}
+
+/** Close the live loop for the space being left. */
+export function stopSync() {
+  events?.close()
+  events = undefined
+  if (poll) clearInterval(poll)
+  poll = undefined
+}
+
+/** Forget the outgoing space's build state so the new space's first meta is a baseline, not a diff. */
+export function resetSync() {
+  syncState.status = 'idle'
+  syncState.message = ''
+  syncState.builtAt = ''
+  syncState.headCommit = ''
 }
