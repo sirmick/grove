@@ -2,13 +2,14 @@
   import type { Row } from '@grove/core'
   import { syncState } from '../db/sync.svelte'
   import DataTable from '../data/DataTable.svelte'
+  import { apiFetch } from '../space.svelte'
 
   // The respin journal (db/respins.json) dog-fooded as a queryable collection. Derived, read-only.
   let rows = $state<Row[]>([])
 
   $effect(() => {
     void syncState.builtAt // refetch whenever a new respin lands
-    fetch('/db/respins.json', { cache: 'no-store' })
+    apiFetch('/db/respins.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<Record<string, unknown>>) => {
         rows = data

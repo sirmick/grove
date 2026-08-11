@@ -6,6 +6,7 @@
   import { diagrams } from '../diagrams'
   import { grove } from '../grove/client'
   import { renderMarkdown } from '../md'
+  import { apiFetch } from '../space.svelte'
   import { openLinks, openLog } from '../state.svelte'
   import { parseActions } from './actions'
 
@@ -27,7 +28,7 @@
   $effect(() => {
     void syncState.builtAt
     let alive = true
-    fetch('/db/meta.json', { cache: 'no-store' })
+    apiFetch('/db/meta.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((meta: { outputs?: OutputArtifact[] } | null) => {
         if (!alive) return

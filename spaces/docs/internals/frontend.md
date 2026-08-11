@@ -19,6 +19,13 @@ same engine as the CLI. The corpus is seeded from a bundled snapshot and refresh
 - `sync.svelte` — the live loop: SSE/poll → reconcile against `meta.json`; `commitAll` POSTs the
   change set and handles `{ ok, conflicts }`.
 - `state.svelte` — in-app tabs (the reconcile targets).
+- `space.svelte` — which space **this browser tab** is bound to. It lives in the tab's URL
+  (`?space=<name>`) and `api()` stamps it onto every server URL, so two tabs can hold two spaces at
+  once. `session.svelte` owns the switch: no reload, just tear down everything space-scoped (SSE
+  stream, tabs, drafts, search index, bin listing) and load it again for the new space. Per-space
+  state is keyed by space name — `grove.tabs.<space>`, `grove.expand.<space>`, `drafts-<space>.json`
+  — so switching back restores what you left, and terminals from other spaces stay in the strip
+  (dimmed) with their PTYs still running server-side.
 
 ## Views
 

@@ -47,11 +47,13 @@
     <span class="brand">grove</span>
     <span class="ver" title="grove version">v{VERSION}</span>
     {#if spaceState.spaces.length > 1}
+      <!-- Switches THIS browser tab only, in place: other tabs keep the space named in their URL. -->
       <select
         class="spacesel"
         value={spaceState.current}
+        disabled={spaceState.switching}
         onchange={(e) => switchSpace(e.currentTarget.value)}
-        title="Switch space">
+        title="Switch space (this tab only)">
         {#each spaceState.spaces as s (s)}<option value={s}>{s}</option>{/each}
       </select>
     {/if}

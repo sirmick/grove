@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 // grove server — read tier (static db/ + corpus + SSE change-feed), author tier (git commit /
 // worktree transaction) and dev tier (exec + pty), with a watcher per space. Multiple spaces are
-// selectable per request via the `grove_space` cookie; GROVE_SPACE forces single-space mode (e2e).
+// selectable per request via `?space=<name>` (the grove_space cookie is only a fallback, so each
+// browser tab can sit in its own space); GROVE_SPACE forces single-space mode (e2e).
 import {
   type Stats,
   existsSync,
@@ -144,19 +145,34 @@ function defaultSpace(): string {
 const dirOfSpace = (name: string): string | undefined =>
   listSpaces().find((s) => s.name === name)?.dir
 
-// Resolve the request's space from the grove_space cookie (validated against the list), else default.
-// A malformed cookie value (bad %xx) must not throw — it just falls back to the default space.
+// Resolve the request's space: the explicit `?space=` parameter first, then the grove_space cookie,
+// then the default. The parameter is what makes a space per-BROWSER-TAB — the cookie is shared by
+// every tab on this origin, so it can only ever be the seed a fresh tab starts from. Both are
+// validated against the space list, and a malformed value (bad %xx) falls back rather than throwing.
 function spaceFromCookie(cookie: string | undefined): string {
   const m = /(?:^|;\s*)grove_space=([^;]+)/.exec(cookie ?? '')
-  let name = ''
-  if (m?.[1]) {
-    try {
-      name = decodeURIComponent(m[1])
-    } catch {
-      name = ''
-    }
+  if (!m?.[1]) return ''
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return ''
   }
-  return name && dirOfSpace(name) ? name : defaultSpace()
+}
+
+function spaceFromQuery(url: string | undefined): string {
+  try {
+    return new URL(url ?? '/', 'http://localhost').searchParams.get('space') ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function spaceOf(url: string | undefined, cookie: string | undefined): string {
+  const asked = spaceFromQuery(url)
+  if (asked && dirOfSpace(asked)) return asked
+  const seed = spaceFromCookie(cookie)
+  if (seed && dirOfSpace(seed)) return seed
+  return defaultSpace()
 }
 
 // Per-space SSE listeners → a respin in one space only pings clients viewing that space.
@@ -187,8 +203,13 @@ function ensure(name: string): string {
   return dir
 }
 
-const reqSpace = (cookie: string | undefined): { name: string; dir: string } => {
-  const name = spaceFromCookie(cookie)
+interface SpaceReq {
+  url?: string
+  header(name: 'cookie'): string | undefined
+}
+
+const reqSpace = (req: SpaceReq): { name: string; dir: string } => {
+  const name = spaceOf(req.url, req.header('cookie'))
   return { name, dir: ensure(name) }
 }
 
@@ -203,15 +224,15 @@ const app = new Hono()
 app.get('/spaces', (c) =>
   c.json({
     spaces: listSpaces().map((s) => s.name),
-    current: spaceFromCookie(c.req.header('cookie')),
+    current: spaceOf(c.req.url, c.req.header('cookie')),
   }),
 )
 
 // Read tier: the raw corpus (data; FE computes over it) and the built db/* (journal, projections).
-app.get('/corpus.json', (c) => c.json(loadCorpusFromDir(reqSpace(c.req.header('cookie')).dir)))
+app.get('/corpus.json', (c) => c.json(loadCorpusFromDir(reqSpace(c.req).dir)))
 
 app.get('/db/*', (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   const rel = c.req.path.replace(/^\/db\//, '')
   if (rel.includes('..')) return c.text('bad path', 400)
   try {
@@ -250,7 +271,7 @@ function safeTarget(dir: string, rel: string): string | null {
 
 // Dev write endpoint. Atomic, path-safe; commits in place + respins + broadcasts.
 app.put('/incoming/*', async (c) => {
-  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const { name, dir } = reqSpace(c.req)
   const rel = safeDecode(c.req.path.replace(/^\/incoming\//, ''))
   if (rel === null) return c.text('bad path', 400)
   const target = safeTarget(dir, rel)
@@ -269,7 +290,7 @@ app.put('/incoming/*', async (c) => {
 // on a branch, build there as a gate, then merge → respin only if it builds and merges cleanly.
 // Conflicts/build failures leave main untouched and report back (drafts are kept).
 app.post('/commit', async (c) => {
-  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const { name, dir } = reqSpace(c.req)
   const body = (await c.req.json()) as {
     message?: string
     files?: Record<string, string>
@@ -357,7 +378,7 @@ function moveTarget(
 }
 
 app.post('/move', async (c) => {
-  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const { name, dir } = reqSpace(c.req)
   const body = (await c.req.json()) as { items?: MoveItem[]; dest?: string }
   const items = body.items ?? []
   const dest = body.dest ?? ''
@@ -402,7 +423,7 @@ function safeUploadTarget(dir: string, rel: string): string | null {
 }
 
 app.put('/upload/*', async (c) => {
-  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const { name, dir } = reqSpace(c.req)
   const rel = safeDecode(c.req.path.replace(/^\/upload\//, ''))
   if (rel === null) return c.text('bad path', 400)
   const target = safeUploadTarget(dir, rel)
@@ -497,13 +518,13 @@ function safeBinPath(dir: string, rel: string): string | null {
 }
 
 app.get('/fs/list', (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   return c.json({ entries: listBin(dir) })
 })
 
 const FS_READ_MAX = 1024 * 1024
 app.get('/fs/read', (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   const abs = safeBinPath(dir, c.req.query('path') ?? '')
   if (!abs || !existsSync(abs)) return c.text('not found', 404)
   const st = statSync(abs)
@@ -531,7 +552,7 @@ app.get('/fs/read', (c) => {
 })
 
 app.put('/fs/write', async (c) => {
-  const { name, dir } = reqSpace(c.req.header('cookie'))
+  const { name, dir } = reqSpace(c.req)
   const rel = c.req.query('path') ?? ''
   const abs = safeBinPath(dir, rel)
   if (!abs || rel === 'bin') return c.text('bad path', 400)
@@ -561,7 +582,7 @@ const ASSET_MIME: Record<string, string> = {
   json: 'application/json; charset=utf-8',
 }
 app.get('/assets/*', (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   const rel = safeDecode(c.req.path.replace(/^\/assets\//, ''))
   if (rel === null || rel.includes('..')) return c.text('bad path', 400)
   const abs = resolve(dir, rel)
@@ -595,7 +616,7 @@ app.post('/screenshot', async (c) => {
 
 // Dev tier — structured exec for AI/automation: run the grove CLI against the request's space.
 app.post('/exec', async (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   const { args } = (await c.req.json()) as { args?: string[] }
   if (!Array.isArray(args)) return c.text('args[] required', 400)
   return await new Promise<Response>((resolveResp) => {
@@ -632,7 +653,7 @@ app.post('/exec', async (c) => {
 // Close a terminal tab's PTY (the FE closed the tab). Scoped to the request's space; kills the bash
 // process and drops the session so it doesn't linger until the idle sweep. No-op if already gone.
 app.post('/pty-close', async (c) => {
-  const { dir } = reqSpace(c.req.header('cookie'))
+  const { dir } = reqSpace(c.req)
   const { sid } = (await c.req.json().catch(() => ({}))) as { sid?: string }
   if (!sid || !/^[A-Za-z0-9_-]{1,80}$/.test(sid)) return c.text('sid required', 400)
   const session = ptySessions.get(sessionKey(dir, sid))
@@ -653,7 +674,7 @@ app.post('/pty-close', async (c) => {
 
 // SSE change-feed, scoped to the request's space: a "changed" ping per respin the FE reacts to.
 app.get('/events', (c) => {
-  const { name } = reqSpace(c.req.header('cookie'))
+  const { name } = reqSpace(c.req)
   return streamSSE(c, async (stream) => {
     const send = (data: string) => {
       void stream.writeSSE({ event: 'changed', data })
@@ -885,8 +906,8 @@ function ptyFor(dir: string, sid: string): PtySession {
 }
 
 function attachPty(ws: WebSocket, req: IncomingMessage) {
-  const { dir } = reqSpace(req.headers.cookie)
-  // Open or resume the terminal IN the request's space, with grove + ai on PATH via our rcfile.
+  const dir = ensure(spaceOf(req.url, req.headers.cookie))
+  // Open or resume the terminal IN the socket's space, with grove + ai on PATH via our rcfile.
   const session = ptyFor(dir, ptySessionId(req))
   for (const client of [...session.clients]) client.close(4000, 'replaced')
   session.clients.clear()

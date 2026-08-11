@@ -2,6 +2,7 @@
 // server (PUT /upload/<collection>/<name>). Markdown/yaml land as records (the corpus picks them
 // up on the respin); other allowed types are stored as assets. Filenames are sanitized to a bare
 // basename so a drag can't traverse out of the target collection.
+import { apiFetch } from '../space.svelte'
 
 const ALLOWED = /\.(md|markdown|ya?ml|txt|csv|tsv|json|png|jpe?g|gif|svg|webp|pdf)$/i
 
@@ -26,7 +27,7 @@ export async function uploadFiles(dest: string, files: readonly File[]): Promise
     }
     const rel = destRel ? `${destRel}/${name}` : name
     try {
-      const res = await fetch(`/upload/${rel.split('/').map(encodeURIComponent).join('/')}`, {
+      const res = await apiFetch(`/upload/${rel.split('/').map(encodeURIComponent).join('/')}`, {
         method: 'PUT',
         headers: { 'content-type': file.type || 'application/octet-stream' },
         body: await file.arrayBuffer(),

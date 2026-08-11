@@ -1,9 +1,9 @@
 // Multi-tab terminal model. Each tab is a PTY session (sid) bound to one space; the server keys its
-// PTY by (space-dir, sid) and replays scrollback on reconnect, so tabs survive reloads. The tab list
-// is global and persisted; only the current space's tabs render live (the /pty endpoint resolves
-// the space from the request cookie), so clicking a tab in another space switches the app to that
-// space — after the reload that tab is the active one.
-import { currentSpace, switchSpace } from '../space.svelte'
+// PTY by (space-dir, sid) and replays scrollback on reconnect, so tabs survive both reloads and
+// space switches. The tab list is global and persisted; only the current space's tabs render live
+// (each /pty socket names its space), so clicking a tab in another space switches THIS browser tab
+// to that space in place and focuses it — the PTYs left behind keep running.
+import { api, currentSpace, switchSpace } from '../space.svelte'
 
 export interface TermTab {
   sid: string
@@ -12,7 +12,6 @@ export interface TermTab {
 }
 
 const KEY = 'grove.terms.v1'
-const PENDING_ACTIVE = 'grove.terms.pendingActive' // sid to focus right after a space-switch reload
 
 export const terms = $state<{ tabs: TermTab[]; activeSid: string | null }>({
   tabs: [],
@@ -45,11 +44,17 @@ export function loadTerms() {
   } catch {
     /* corrupt cache */
   }
-  const pending = localStorage.getItem(PENDING_ACTIVE)
-  localStorage.removeItem(PENDING_ACTIVE)
+  rebindTerms()
+}
+
+/**
+ * Point the strip at the current space: activate one of its terminals, opening one if it has none.
+ * The tab list itself is untouched — other spaces' tabs stay in it (dimmed in the strip) and their
+ * PTYs keep running server-side, so switching back resumes them with scrollback intact.
+ */
+export function rebindTerms() {
   const here = currentSpaceTabs()
-  if (pending && here.some((t) => t.sid === pending)) terms.activeSid = pending
-  else terms.activeSid = here[0]?.sid ?? null
+  terms.activeSid = here[0]?.sid ?? null
   if (!here.length) newTerm() // every space opens with at least one terminal
 }
 
@@ -67,8 +72,11 @@ export function activateTerm(sid: string) {
   const tab = terms.tabs.find((t) => t.sid === sid)
   if (!tab) return
   if (tab.space !== currentSpace()) {
-    localStorage.setItem(PENDING_ACTIVE, sid) // focus it after the reload
-    switchSpace(tab.space)
+    // Switching brings up that space in place, then we focus the terminal that was clicked (the
+    // switch itself just picks the space's first one).
+    void switchSpace(tab.space).then(() => {
+      if (terms.tabs.some((t) => t.sid === sid)) terms.activeSid = sid
+    })
     return
   }
   terms.activeSid = sid
@@ -78,9 +86,10 @@ export function closeTerm(sid: string) {
   const tab = terms.tabs.find((t) => t.sid === sid)
   terms.tabs = terms.tabs.filter((t) => t.sid !== sid)
   save()
-  // Kill the server PTY if it's in the current space (the cookie scopes /pty-close to one space).
-  if (tab && tab.space === currentSpace()) {
-    void fetch('/pty-close', {
+  // Kill the server PTY, naming the tab's own space — closing another space's terminal from the
+  // strip must kill THAT space's session, not one with the same sid here.
+  if (tab) {
+    void fetch(api('/pty-close', tab.space), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sid }),

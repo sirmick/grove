@@ -17,16 +17,25 @@ export const draftsState = $state<{ map: Record<string, Draft>; loaded: boolean 
   loaded: false,
 })
 
-// Drafts are scoped per space so two spaces with the same paths don't collide. The space is fixed
-// for a session (switching reloads), so reading it at call time is safe.
+// Drafts are scoped per space so two spaces with the same paths don't collide. Read at call time:
+// a space switch swaps currentSpace() under us, and every read/write after it must hit the new
+// space's file (the in-memory map is cleared by resetDrafts() as part of that switch).
 const fileName = () => `drafts-${currentSpace()}.json`
 
 function persist() {
   void writeText(fileName(), JSON.stringify(draftsState.map))
 }
 
+/** Forget the outgoing space's drafts (in memory only — the OPFS file stays put for the return trip). */
+export function resetDrafts() {
+  draftsState.map = {}
+  draftsState.loaded = false
+}
+
 export async function loadDrafts() {
+  const space = currentSpace()
   const raw = await readText(fileName())
+  if (space !== currentSpace()) return // switched again mid-read; the newer load owns the state
   if (raw) {
     try {
       draftsState.map = JSON.parse(raw)

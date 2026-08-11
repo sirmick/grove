@@ -15,8 +15,18 @@ export const tabsState = $state<{ tabs: Tab[]; activeId: string | null }>({
   activeId: null,
 })
 
-// Open tabs persist per space so switching spaces (which reloads) keeps your open documents.
+// Open tabs persist per space, so switching spaces and coming back keeps your open documents.
 const tabsKey = () => `grove.tabs.${currentSpace()}`
+
+/**
+ * Clear the open tabs when leaving a space. Deliberately does NOT persist: the outgoing space's
+ * saved tab list must survive so switching back restores it (saveTabs() writes under whichever
+ * space is current, which would clobber one side or the other).
+ */
+export function resetTabs() {
+  tabsState.tabs = []
+  tabsState.activeId = null
+}
 
 /** Restore open tabs for the current space. Run after bootSpace(); returns true if any were loaded. */
 export function loadTabs(): boolean {
