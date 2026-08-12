@@ -31,6 +31,8 @@ export default defineConfig({
             '/fs': SERVER,
             '/assets': SERVER,
             '/commit': SERVER,
+            // Covers '/publish' and '/publish/status' (prefix match).
+            '/publish': SERVER,
             '/screenshot': SERVER,
             '/exec': SERVER,
             '/events': SERVER,

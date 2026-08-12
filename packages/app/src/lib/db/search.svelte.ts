@@ -68,6 +68,10 @@ export async function runSearch(query: string): Promise<void> {
     return
   }
   const idx = await getIndex()
+  // Typing fires one call per keystroke and the first has to build/load the index, so replies can
+  // land out of order — only the newest query's hits may be shown (an older one would contradict
+  // what's in the box).
+  if (searchState.query !== query) return
   searchState.results = idx
     .search(query, { prefix: true, fuzzy: 0.2 })
     .slice(0, 25)

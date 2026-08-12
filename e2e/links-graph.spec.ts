@@ -10,7 +10,9 @@ test('links: the 2D graph canvas renders in the link map', async ({ page }) => {
   await page.getByRole('button', { name: 'Project' }).first().click()
   await page.getByRole('button', { name: /Open the link map/ }).click()
 
-  await expect(page.getByRole('heading', { name: 'Links', level: 1 })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('heading', { name: 'Links', level: 1 })).toBeVisible({
+    timeout: 15000,
+  })
 
   // the 2D canvas graph is present and has real dimensions
   const canvas = page.locator('.graph2d canvas')

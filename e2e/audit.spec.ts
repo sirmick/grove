@@ -21,7 +21,9 @@ test('version: 0.8.0 shows in the UI', async ({ page }) => {
 
 test('fswatch: an external source edit refreshes the UI (no API call)', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('button', { name: /^notes$/ }).first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('button', { name: /^notes$/ }).first()).toBeVisible({
+    timeout: 15000,
+  })
   // Write a brand-new record directly to disk, bypassing /incoming entirely. Only the source
   // watcher (rebuild + respin + SSE) can make this surface in the running UI.
   writeFileSync(`${SPACE}/notes/e2e-fswatch.md`, '# E2E FSWatch Live\n\n**Tags:** x\n')
@@ -48,7 +50,9 @@ test('links: relative image serves from /assets; wikilink + relative .md link na
 
   await page.goto('/')
   await page.locator('[data-record="notes/e2e-src"]').click()
-  await expect(page.getByRole('heading', { name: 'E2E Src', level: 1 })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('heading', { name: 'E2E Src', level: 1 })).toBeVisible({
+    timeout: 15000,
+  })
   const body = page.locator('.body')
 
   // image rewritten to the project-relative asset route (carrying the tab's space, since the
@@ -59,13 +63,18 @@ test('links: relative image serves from /assets; wikilink + relative .md link na
   expect(asset.status()).toBe(200)
   expect(asset.headers()['content-type']).toContain('image/png')
 
-  // relative .md link → in-app nav
-  await expect(body.locator('a.rellink')).toHaveAttribute('data-slug', 'notes/e2e-target')
-  await body.locator('a.rellink').click()
-  await expect(page.getByRole('heading', { name: 'E2E Target', level: 1 })).toBeVisible()
+  // Both written forms (relative .md link and `[[wikilink]]`) end up as in-app links carrying the
+  // project-relative slug. The commit normalizes a wikilink whose target exists into a markdown
+  // link, so both render as .rellink here — what matters is that each navigates in-app.
+  const inApp = body.locator('a.rellink, a.wikilink')
+  await expect(inApp).toHaveCount(2)
+  for (const link of await inApp.all()) {
+    await expect(link).toHaveAttribute('data-slug', 'notes/e2e-target')
+  }
 
-  // wikilink → in-app nav
-  await page.locator('[data-record="notes/e2e-src"]').click()
-  await body.locator('a.wikilink').click()
-  await expect(page.getByRole('heading', { name: 'E2E Target', level: 1 })).toBeVisible()
+  for (const nth of [0, 1]) {
+    await page.locator('[data-record="notes/e2e-src"]').click()
+    await body.locator('a.rellink, a.wikilink').nth(nth).click()
+    await expect(page.getByRole('heading', { name: 'E2E Target', level: 1 })).toBeVisible()
+  }
 })

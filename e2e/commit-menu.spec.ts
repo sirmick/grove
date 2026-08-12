@@ -38,7 +38,7 @@ test('commit menu lists pending files and commits with a custom message', async 
   await page.locator('.commitmenu .msg').fill('docs: my custom subject')
   await page.getByRole('button', { name: /^Commit$/ }).click()
 
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
   expect((await corpus(request))['notes/cm-a.md']).toContain('COMMIT-VIA-MENU')
   expect((await meta(request)).log[0]?.message).toBe('docs: my custom subject')
 })
@@ -51,11 +51,11 @@ test('commit menu discards a single draft without committing it', async ({ page,
   await page.goto('/')
   await editSource(page, 'notes/cm-b', ' SHOULD-BE-DISCARDED')
 
-  await expect(page.getByRole('button', { name: 'Save (1)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Commit (1)' })).toBeVisible()
   await page.locator('.commitmenu summary').click()
   await page.locator('.commitmenu .files li', { hasText: 'notes/cm-b' }).locator('.discard').click()
 
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible()
   // The discarded edit never reached disk.
   expect((await corpus(request))['notes/cm-b.md']).not.toContain('SHOULD-BE-DISCARDED')
 })

@@ -1,6 +1,7 @@
 <script lang="ts">
   // The content column's header: open tabs on the left, content actions pinned right (the editor
-  // mode chip + Edit/Done only on a doc; Save + New always). Co-located with the tabs they affect.
+  // mode chip + Edit/Done only on a doc; New + Commit + Publish always). Co-located with the tabs
+  // they affect.
   import {
     collectionScaffold,
     composeMarkdown,
@@ -9,6 +10,8 @@
     slugify,
   } from '@grove/core'
   import CommitMenu from './CommitMenu.svelte'
+  import PublishButton from './PublishButton.svelte'
+  import { publishState } from './db/publish.svelte'
   import { hasDraft, setDraft } from './db/drafts.svelte'
   import { type SyncStatus, currentHead, syncState } from './db/sync.svelte'
   import { grove } from './grove/client'
@@ -124,6 +127,10 @@
       <span class="syncst" class:err={syncState.status === 'error'} title={syncState.message}>
         {STATUS[syncState.status]}
       </span>
+    {:else if publishState.message}
+      <span class="syncst pubst" class:err={publishState.error} title={publishState.message}>
+        {publishState.message}
+      </span>
     {/if}
 
     <details class="newmenu" bind:this={newMenu}>
@@ -141,6 +148,7 @@
     </details>
 
     <CommitMenu />
+    <PublishButton />
   </div>
 </div>
 
@@ -199,6 +207,14 @@
   .syncst {
     font-size: 12px;
     color: var(--muted);
+  }
+  /* The publish result is transient prose, not a fixed-width status word — keep it from pushing the
+     buttons off the bar on a long remote name or error. */
+  .pubst {
+    max-width: 30ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .syncst.err {
     color: var(--warn);

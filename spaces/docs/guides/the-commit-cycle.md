@@ -19,6 +19,27 @@ plain editor; once a commit is made, grove updates generated markdown and derive
 If the build fails or the merge conflicts, main is untouched and your drafts are kept so you can
 fix and retry.
 
+## Publishing
+
+Commit is **local**: it writes the space's own git history and nothing leaves the machine. **Publish**
+(the button next to Commit) is the second half — it pushes the space's branch to its git remote.
+
+- The count on the button is how many commits the remote hasn't seen. No remote, or nothing ahead,
+  and the button is disabled and says which.
+- Uncommitted drafts are *not* published — commit them first (the tooltip warns when some are
+  pending).
+- A push that git rejects (a diverged remote, missing credentials) is reported as-is and changes
+  nothing locally: pull, merge, and publish again.
+- For a space that lives inside a bigger repo (like `spaces/docs` in the grove repo), publishing
+  pushes that repo's branch — its other commits go too, and the tooltip says so.
+
+The same thing from the CLI:
+
+```
+grove publish status               # → { remote, branch, ahead, behind, uncommitted, … }
+grove publish run                  # → pushes, reports what it sent
+```
+
 ## From the CLI
 
 For normal file edits, stage and commit once:

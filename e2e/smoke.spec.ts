@@ -36,8 +36,8 @@ test('edit + commit → real git commit (HEAD advances) + persists', async ({ pa
   await page.keyboard.press('Control+End') // append at the end, don't corrupt links mid-body
   await page.keyboard.type(' EDITED-BY-E2E')
 
-  await page.getByRole('button', { name: /^Save \(/ }).click()
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /^Commit \(/ }).click()
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
 
   const corpus = (await (await request.get(`${SERVER}/corpus.json`)).json()) as Record<
     string,
@@ -62,8 +62,8 @@ test('wysiwyg: doc opens in rich editor by default → edits round-trip to markd
   await page.keyboard.press('Control+End')
   await page.keyboard.type(' WYSIWYG-E2E')
 
-  await page.getByRole('button', { name: /^Save \(/ }).click()
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /^Commit \(/ }).click()
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
 
   const corpus = (await (await request.get(`${SERVER}/corpus.json`)).json()) as Record<
     string,
@@ -128,14 +128,17 @@ test('dev tier: terminal reconnect does not duplicate replay or fight tabs', asy
   const text = await term.innerText()
   expect((text.match(/grove terminal/g) ?? []).length).toBe(1)
 
+  // A second browser tab shares the persisted terminal list, so it attaches to the SAME PTY: it
+  // takes the session over and replays its scrollback. The handed-over tab must then yield — the
+  // server closes it with a "replaced" code, which suppresses the reconnect — instead of the two
+  // tabs fighting over the socket and each replaying the banner again.
   const page2 = await context.newPage()
   await page2.goto('/')
-  await expect(page2.locator('.xterm')).toContainText('grove terminal')
-  const sid1 = await page.evaluate(() => sessionStorage.getItem('grove:terminal-session:v1'))
-  const sid2 = await page2.evaluate(() => sessionStorage.getItem('grove:terminal-session:v1'))
-  expect(sid1).toBeTruthy()
-  expect(sid2).toBeTruthy()
-  expect(sid1).not.toBe(sid2)
+  await expect(page2.locator('.xterm')).toContainText('AFTER-RECONNECT', { timeout: 15000 })
+  expect(await page2.evaluate(() => localStorage.getItem('grove.terms.v1'))).toContain('sid')
+
+  await page.waitForTimeout(1500) // long enough for a reconnect storm to show up
+  expect(((await term.innerText()).match(/grove terminal/g) ?? []).length).toBe(1)
 })
 
 test('dev tier: spaces create scaffolds a new space', async ({ request }) => {

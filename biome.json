@@ -8,11 +8,19 @@
       "spaces/*/db/**",
       "**/generated/**",
       "test-space/**",
+      "test-spaces/**",
       "test-results/**",
       "playwright-report/**",
       ".ingest-test/**",
+      "**/.venv/**",
+      "**/__pycache__/**",
       "**/*.svelte"
     ]
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
   },
   "formatter": {
     "enabled": true,

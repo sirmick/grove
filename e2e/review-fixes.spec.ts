@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 // Regression tests for the review-fixes batch: WYSIWYG round-trip fidelity, rendered-HTML
-// sanitization, the concurrent-edit conflict, and the retryable Save-after-error state.
+// sanitization, the concurrent-edit conflict, and the retryable Commit-after-error state.
 const SERVER = 'http://localhost:5279'
 
 const corpus = async (request: {
@@ -27,8 +27,8 @@ test('wysiwyg preserves wikilinks (as links) and does not collapse field lines',
   await page.keyboard.press('Control+End')
   await page.keyboard.type(' EDITED')
 
-  await page.getByRole('button', { name: /^Save \(/ }).click()
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /^Commit \(/ }).click()
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible({ timeout: 15000 })
 
   const md = (await corpus(request))['notes/roundtrip.md'] ?? ''
   // Field lines survive extraction (were previously merged into one, dropping Beta/Gamma).
@@ -82,12 +82,12 @@ test('concurrent edit is detected as a conflict instead of silently clobbering',
   })
   await page.waitForTimeout(2500) // let SSE reconcile land
 
-  await page.getByRole('button', { name: /^Save \(/ }).click()
-  // The commit is rejected; the draft is kept (Save still shows a pending count) and Save stays
+  await page.getByRole('button', { name: /^Commit \(/ }).click()
+  // The commit is rejected; the draft is kept (Commit still shows a pending count) and Commit stays
   // clickable so it can be retried.
   await expect(page.locator('.syncst.err')).toBeVisible({ timeout: 15000 })
-  await expect(page.getByRole('button', { name: /^Save \(1\)/ })).toBeEnabled()
+  await expect(page.getByRole('button', { name: /^Commit \(1\)/ })).toBeEnabled()
 
-  // The external edit was not clobbered, and Save stays enabled so it can be retried (B2).
+  // The external edit was not clobbered, and Commit stays enabled so it can be retried (B2).
   expect((await corpus(request))['notes/conflict.md']).toContain('EXTERNAL-EDIT')
 })
