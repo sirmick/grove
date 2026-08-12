@@ -9,9 +9,13 @@
 
   $effect(() => {
     void syncState.builtAt // refetch whenever a new respin lands
+    // A respin (or a space switch) can fire this again while the previous fetch is in flight; the
+    // stale reply must not overwrite the newer journal.
+    let alive = true
     apiFetch('/db/respins.json', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Array<Record<string, unknown>>) => {
+        if (!alive) return
         rows = data
           .map((d, i) => ({
             slug: `respin-${i}`,
@@ -33,8 +37,11 @@
           .reverse() // newest first
       })
       .catch(() => {
-        rows = []
+        if (alive) rows = []
       })
+    return () => {
+      alive = false
+    }
   })
 
   const columns = [

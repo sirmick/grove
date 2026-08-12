@@ -636,6 +636,171 @@ export function gitCommitAll(dir: string, message: string): string {
   return commitHead || headCommit(dir)
 }
 
+// ── Publish: push the space's committed history to its git remote. Commit is local (the worktree
+// transaction above); publish is the second half — it makes those commits visible to everyone else.
+// Nothing here ever writes to the worktree, so a failed push leaves the space exactly as it was.
+
+export interface PublishStatus {
+  /** Repo the push would come from — the space itself, or the enclosing repo for an in-repo space. */
+  repo: string | null
+  branch: string | null
+  remote: string | null
+  /** Configured upstream ref (`origin/main`), when the branch tracks one. */
+  upstream: string | null
+  /** Commits on the branch not yet on the remote (all of them when the remote has no such branch). */
+  ahead: number
+  behind: number
+  /** Uncommitted changes in the space — publishing won't include them. */
+  uncommitted: number
+  /** The space lives inside a bigger repo, so a push carries that repo's other commits too. */
+  managed: boolean
+  publishable: boolean
+  /** Why publishing isn't possible/needed right now (null when it is). */
+  reason: string | null
+}
+
+export interface PublishResult extends PublishStatus {
+  ok: boolean
+  /** Commits pushed by this call (the `ahead` count before the push). */
+  pushed: number
+  error?: string
+}
+
+// A push must never block: a repo needing credentials would otherwise hang the request forever
+// waiting on a terminal/askpass prompt that no one can answer. Fail fast instead and report it.
+const PUSH_TIMEOUT_MS = 120000
+const NO_PROMPT_ENV = {
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ASKPASS: 'true',
+  SSH_ASKPASS: 'true',
+  SSH_ASKPASS_REQUIRE: 'never',
+  GIT_SSH_COMMAND: 'ssh -oBatchMode=yes',
+}
+
+function gitPush(args: string[], cwd: string): string {
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: PUSH_TIMEOUT_MS,
+      env: { ...process.env, ...NO_PROMPT_ENV },
+    })
+  } catch (e) {
+    // git writes progress AND failures to stderr, so report both streams.
+    const detail = commandOutput(e, 'stderr') || commandOutput(e, 'stdout') || errorMessage(e)
+    throw new Error(detail)
+  }
+}
+
+function currentBranch(repo: string): string | null {
+  try {
+    const b = git(['rev-parse', '--abbrev-ref', 'HEAD'], repo)
+    return b && b !== 'HEAD' ? b : null // detached HEAD has nothing to push
+  } catch {
+    return null
+  }
+}
+
+function upstreamOf(repo: string): string | null {
+  try {
+    return git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], repo) || null
+  } catch {
+    return null // no tracking branch configured
+  }
+}
+
+function remoteFor(repo: string, upstream: string | null): string | null {
+  if (upstream?.includes('/')) return upstream.slice(0, upstream.indexOf('/'))
+  try {
+    const remotes = git(['remote'], repo).split('\n').filter(Boolean)
+    return remotes.includes('origin') ? 'origin' : (remotes[0] ?? null)
+  } catch {
+    return null
+  }
+}
+
+function countCommits(repo: string, range: string): number {
+  try {
+    return Number(git(['rev-list', '--count', range], repo)) || 0
+  } catch {
+    return 0
+  }
+}
+
+/** Commits ahead/behind the remote. With no remote-tracking ref (branch never pushed), every
+ *  commit on the branch is unpublished. */
+function divergence(repo: string, branch: string, remote: string, upstream: string | null) {
+  const ref = upstream ?? `${remote}/${branch}`
+  if (isValidRev(repo, ref)) {
+    try {
+      const [behind, ahead] = git(['rev-list', '--left-right', '--count', `${ref}...HEAD`], repo)
+        .split(/\s+/)
+        .map(Number)
+      return { ahead: ahead || 0, behind: behind || 0 }
+    } catch {
+      // fall through to the never-pushed count
+    }
+  }
+  return { ahead: countCommits(repo, 'HEAD'), behind: 0 }
+}
+
+/** What publishing this space would do right now — the button's whole state, in one call. */
+export function publishStatus(spaceDir: string): PublishStatus {
+  const managed = managedByEnclosing(spaceDir)
+  const repo = repoTop(spaceDir)
+  const base: PublishStatus = {
+    repo,
+    branch: null,
+    remote: null,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+    uncommitted: gitStatus(spaceDir).length,
+    managed,
+    publishable: false,
+    reason: null,
+  }
+  if (!repo) return { ...base, reason: 'not a git repository' }
+  const branch = currentBranch(repo)
+  const upstream = upstreamOf(repo)
+  const remote = remoteFor(repo, upstream)
+  if (!remote) return { ...base, branch, reason: 'no git remote configured' }
+  if (!branch) return { ...base, remote, reason: 'detached HEAD — check out a branch to publish' }
+  const { ahead, behind } = divergence(repo, branch, remote, upstream)
+  return {
+    ...base,
+    branch,
+    remote,
+    upstream,
+    ahead,
+    behind,
+    publishable: ahead > 0,
+    reason: ahead > 0 ? null : 'nothing to publish',
+  }
+}
+
+/** Push the space's branch to its remote. Reports the post-push status so a caller can re-render
+ *  without a second round trip. Never touches the worktree; a rejected push changes nothing. */
+export function publish(spaceDir: string): PublishResult {
+  const before = publishStatus(spaceDir)
+  const fail = (error: string): PublishResult => ({ ...before, ok: false, pushed: 0, error })
+  if (!before.repo) return fail('not a git repository')
+  if (!before.remote || !before.branch) return fail(before.reason ?? 'nothing to publish')
+  if (before.ahead === 0) return fail('nothing to publish')
+  try {
+    // With a tracking branch, honour the configured refspec; without one, publish the branch and
+    // start tracking it so later publishes (and the ahead count) line up.
+    gitPush(
+      before.upstream ? ['push'] : ['push', '--set-upstream', before.remote, before.branch],
+      before.repo,
+    )
+  } catch (e) {
+    return fail(errorMessage(e))
+  }
+  return { ...publishStatus(spaceDir), ok: true, pushed: before.ahead }
+}
+
 // ── Change transactions (mechanism a): isolate edits in a git worktree, validate the build
 // there, and merge into the space's branch only if it builds cleanly and merges without conflict.
 

@@ -33,6 +33,8 @@ import {
   loadCorpusFromDir,
   postCommitForRepo,
   prepareCommitForRepo,
+  publish,
+  publishStatus,
 } from '@grove/core/node'
 import { ingestSource } from '@grove/ingest'
 import { z } from 'zod'
@@ -256,6 +258,21 @@ export const ops: OpTree = defineOps({
       handler: (i, ctx) => ({
         headCommit: gitCommitAll(ctx.spaceDir, i.message ?? 'grove: update'),
       }),
+    },
+  },
+  // Publish: push what's committed to the space's git remote (commit is local; this shares it).
+  publish: {
+    status: {
+      input: z.object({}),
+      handler: (_i, ctx) => publishStatus(ctx.spaceDir),
+    },
+    run: {
+      input: z.object({}),
+      handler: (_i, ctx) => {
+        const res = publish(ctx.spaceDir)
+        if (!res.ok) throw new Error(`publish failed: ${res.error ?? 'unknown error'}`)
+        return res
+      },
     },
   },
   hooks: {

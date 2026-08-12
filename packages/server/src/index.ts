@@ -25,6 +25,8 @@ import {
   commitChangeset,
   gitCommitAll,
   loadCorpusFromDir,
+  publish,
+  publishStatus,
   watchSpace,
 } from '@grove/core/node'
 import { getRequestListener } from '@hono/node-server'
@@ -220,6 +222,14 @@ else process.stdout.write('grove: no spaces found in the configured roots — no
 
 const app = new Hono()
 
+// A request naming a space that doesn't exist (an empty roots set, a space deleted under us) is a
+// 404, not a server fault — ensure() throws for it and would otherwise surface as an opaque 500.
+app.onError((err, c) => {
+  if (err.message.startsWith('unknown space:')) return c.text(err.message, 404)
+  process.stderr.write(`grove: ${err.stack ?? err.message}\n`)
+  return c.text('internal error', 500)
+})
+
 // The selectable spaces + the caller's current one (resolved from the cookie).
 app.get('/spaces', (c) =>
   c.json({
@@ -306,6 +316,16 @@ app.post('/commit', async (c) => {
   }
   if (res.meta) broadcast(name, res.meta)
   return c.json({ ok: true, headCommit: res.headCommit, builtAt: res.meta?.builtAt })
+})
+
+// Author tier (mechanism c): publish — push what's been committed to the space's git remote. Read
+// the state first (what the button renders), then the push itself. Both are scoped to the request's
+// space; the push never touches the worktree, so a rejected one leaves everything as it was.
+app.get('/publish/status', (c) => c.json(publishStatus(reqSpace(c.req).dir)))
+
+app.post('/publish', (c) => {
+  const res = publish(reqSpace(c.req).dir)
+  return c.json(res, res.ok ? 200 : 409)
 })
 
 // Author tier (mechanism b): re-file — move record .md files and collection subtrees within a
@@ -702,6 +722,8 @@ const GROVE_ROUTES = new Set([
   '/exec',
   '/move',
   '/pty-close',
+  '/publish',
+  '/publish/status',
   '/screenshot',
   '/spaces',
 ])

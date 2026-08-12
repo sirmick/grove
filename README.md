@@ -8,7 +8,8 @@ engine. Built so an AI can drive it through the CLI while you work alongside in 
   become **typed, queryable columns**.
 - **Document / Form / Source** editing (TipTap WYSIWYG with markdown round-trip).
 - **Git-backed commits** via a worktree transaction (build-gated merge → respin), with an OPFS
-  draft layer in the browser.
+  draft layer in the browser — and a **Publish** button next to Commit that pushes the space's
+  branch to its git remote (`grove publish status` / `grove publish run` from the CLI).
 - A built-in **terminal** with `grove` and an `ai` launcher on `PATH`, **multi-space** switching
   (per browser tab — each tab holds its own space, switching one leaves the others alone), a
   read-only **Help** panel, and server-side **screenshots** for collaboration.

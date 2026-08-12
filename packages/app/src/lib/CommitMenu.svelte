@@ -1,8 +1,9 @@
 <script lang="ts">
-  // The commit control: a one-click `Save (n)` primary button plus a chevron that opens a review
+  // The commit control: a one-click `Commit (n)` primary button plus a chevron that opens a review
   // popover — the pending files (each discardable), an optional commit message, and Commit /
-  // Discard all. Save commits every draft with a default message; the popover is for reviewing
-  // what's staged, dropping individual drafts, or writing a message first.
+  // Discard all. The button commits every draft with a default message; the popover is for
+  // reviewing what's staged, dropping individual drafts, or writing a message first. Committing is
+  // local git history — PublishButton (next to it) is what pushes it to the remote.
   import { clearAllDrafts, clearDraft, draftCount, draftPaths } from './db/drafts.svelte'
   import { commitAll, isBusy, syncState } from './db/sync.svelte'
   import Icon from './icons/Icon.svelte'
@@ -36,9 +37,11 @@
   <button
     class="btn primary save"
     disabled={draftCount() === 0 || isBusy()}
-    title={syncState.status === 'error' ? syncState.message : 'Commit all drafts'}
+    title={syncState.status === 'error'
+      ? syncState.message
+      : 'Commit all drafts to the space’s git history'}
     onclick={() => void commitAll()}>
-    <Icon name="save" size={15} /> Save ({draftCount()})
+    <Icon name="save" size={15} /> Commit ({draftCount()})
   </button>
   <details class="commitmenu" bind:this={menu}>
     <summary

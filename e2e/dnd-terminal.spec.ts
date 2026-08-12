@@ -113,18 +113,24 @@ test('terminal: multi-tab open/switch keeps scrollback; reload replays it', asyn
   // tab 1: leave a marker
   await page.locator('.pane:visible .xterm-screen').click()
   await page.keyboard.type('echo TAB-ONE-MARKER\n')
-  await expect(page.locator('.pane').nth(0).locator('.xterm-rows')).toContainText('TAB-ONE-MARKER', {
-    timeout: 15000,
-  })
+  await expect(page.locator('.pane').nth(0).locator('.xterm-rows')).toContainText(
+    'TAB-ONE-MARKER',
+    {
+      timeout: 15000,
+    },
+  )
 
   // open a second terminal → both panes mounted (the inactive one hidden, not destroyed)
   await page.getByTitle('New terminal (Ctrl+Shift+T)').click()
   await expect(page.locator('.xterm')).toHaveCount(2)
   await page.locator('.pane:visible .xterm-screen').click()
   await page.keyboard.type('echo TAB-TWO-MARKER\n')
-  await expect(page.locator('.pane').nth(1).locator('.xterm-rows')).toContainText('TAB-TWO-MARKER', {
-    timeout: 15000,
-  })
+  await expect(page.locator('.pane').nth(1).locator('.xterm-rows')).toContainText(
+    'TAB-TWO-MARKER',
+    {
+      timeout: 15000,
+    },
+  )
 
   // switch back to tab 1 — its scrollback survived the switch (display:none, not unmount)
   await page.getByRole('tab').first().click()
@@ -133,9 +139,12 @@ test('terminal: multi-tab open/switch keeps scrollback; reload replays it', asyn
   // reload: the server keys the PTY by (space, sid) and replays scrollback on reconnect
   await page.reload()
   await expect(page.locator('.xterm')).toHaveCount(2)
-  await expect(page.locator('.pane').nth(0).locator('.xterm-rows')).toContainText('TAB-ONE-MARKER', {
-    timeout: 15000,
-  })
+  await expect(page.locator('.pane').nth(0).locator('.xterm-rows')).toContainText(
+    'TAB-ONE-MARKER',
+    {
+      timeout: 15000,
+    },
+  )
 })
 
 test('persistence: open tab + tree expansion survive a reload', async ({ page }) => {

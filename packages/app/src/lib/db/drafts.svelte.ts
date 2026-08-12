@@ -38,7 +38,17 @@ export async function loadDrafts() {
   if (space !== currentSpace()) return // switched again mid-read; the newer load owns the state
   if (raw) {
     try {
-      draftsState.map = JSON.parse(raw)
+      // Only adopt a well-formed map of drafts: a corrupt/foreign file that happens to parse (an
+      // array, a string, a map of junk) would otherwise become the draft set and be sent to /commit.
+      const parsed: unknown = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        draftsState.map = Object.fromEntries(
+          Object.entries(parsed as Record<string, unknown>).filter(
+            (entry): entry is [string, Draft] =>
+              typeof (entry[1] as Draft | null)?.content === 'string',
+          ),
+        )
+      }
     } catch {
       // ignore corrupt cache
     }

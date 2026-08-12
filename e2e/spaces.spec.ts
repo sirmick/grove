@@ -88,17 +88,17 @@ test('each space keeps its own drafts and open tabs across a switch', async ({ c
   await page.locator('.cm-content').click()
   await page.keyboard.press('Control+End')
   await page.keyboard.type(' ALPHA-DRAFT')
-  await expect(page.getByRole('button', { name: 'Save (1)' })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('button', { name: 'Commit (1)' })).toBeVisible({ timeout: 15000 })
 
   // beta starts clean — alpha's draft and its open document tab don't bleed through.
   await page.locator('.spacesel').selectOption('beta')
   await expect(page.locator(ONLY('beta'))).toBeVisible({ timeout: 15000 })
-  await expect(page.getByRole('button', { name: 'Save (0)' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Commit (0)' })).toBeVisible()
   await expect(page.locator('.tabbar')).not.toContainText('only-alpha')
 
   // Back in alpha the draft and the tab are still there.
   await page.locator('.spacesel').selectOption('alpha')
-  await expect(page.getByRole('button', { name: 'Save (1)' })).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('button', { name: 'Commit (1)' })).toBeVisible({ timeout: 15000 })
   await expect(page.locator('.tabbar')).toContainText('only-alpha')
 })
 

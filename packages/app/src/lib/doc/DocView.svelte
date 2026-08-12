@@ -56,7 +56,7 @@
 {#if rec}
   <article class="page doc">
     {#if hasDraft(`${slug}.md`)}
-      <span class="banner draftbanner">Unsaved draft — Save in the top bar</span>
+      <span class="banner draftbanner">Unsaved draft — Commit in the top bar</span>
     {:else if rec.meta.status === 'review'}
       <div class="dochead">
         <span class="banner">Draft — ingested, pending review</span>

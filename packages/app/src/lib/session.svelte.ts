@@ -7,6 +7,7 @@
 // are restored so the first render has content.
 import { resetBin } from './bin/bin.svelte'
 import { loadDrafts, resetDrafts } from './db/drafts.svelte'
+import { resetPublish } from './db/publish.svelte'
 import { resetSearch } from './db/search.svelte'
 import { resetSync, startSync, stopSync } from './db/sync.svelte'
 import { grove } from './grove/client'
@@ -26,6 +27,7 @@ function teardown() {
   resetCorpus()
   resetSearch()
   resetBin()
+  resetPublish() // the outgoing space's remote/ahead count says nothing about the new one
   editor.editing = false
 }
 
