@@ -332,18 +332,29 @@ export const ops: OpTree = defineOps({
           .filter(([, p]) => p?.trim())
           .map(([dir, p]) => `## ${dir}\n\n${(p as string).trim()}`)
         if (collections.length) sections.push(`# Collections\n\n${collections.join('\n\n')}`)
-        // Self-improvement loop: feed back what earlier sessions learned, digest (summary.md) first
-        // then the individual lesson notes, so each session starts from accumulated experience.
-        const lessonKeys = Object.keys(c)
+        // Self-improvement loop: feed back what earlier sessions learned — the digest (summary.md)
+        // in full, then only the most recent notes in full. Older notes are listed by slug so the
+        // session knows they exist and can `grove records read` one on demand. Inlining every note
+        // grew this prompt past Linux's 128 KiB per-argument limit (E2BIG), which broke `ai`.
+        const RECENT_LESSONS = 5
+        const slug = (p: string) => p.slice('lessons/'.length, -'.md'.length)
+        const noteKeys = Object.keys(c)
           .filter((p) => p.startsWith('lessons/') && p.endsWith('.md'))
           .filter((p) => !p.includes('/_grove/') && !p.endsWith('/README.md'))
-          .sort((a, b) =>
-            a === 'lessons/summary.md' ? -1 : b === 'lessons/summary.md' ? 1 : a.localeCompare(b),
+          .filter((p) => p !== 'lessons/summary.md' && (c[p] ?? '').trim())
+          .sort() // notes are date-prefixed, so lexical order is chronological
+        const recent = noteKeys.slice(-RECENT_LESSONS)
+        const older = noteKeys.slice(0, -RECENT_LESSONS)
+        const lessons: string[] = []
+        const summary = (c['lessons/summary.md'] ?? '').trim()
+        if (summary) lessons.push(`## summary\n\n${summary}`)
+        for (const p of recent) lessons.push(`## ${slug(p)}\n\n${(c[p] as string).trim()}`)
+        if (older.length) {
+          const list = older.map((p) => `- ${slug(p)}`).join('\n')
+          lessons.push(
+            `## Older notes (not inlined — \`grove records read --slug lessons/<slug>\`)\n\n${list}`,
           )
-        const lessons = lessonKeys
-          .map((p) => [p, c[p] ?? ''] as const)
-          .filter(([, body]) => body.trim())
-          .map(([p, body]) => `## ${p.slice('lessons/'.length, -'.md'.length)}\n\n${body.trim()}`)
+        }
         if (lessons.length) sections.push(`# Past lessons\n\n${lessons.join('\n\n')}`)
         return sections.join('\n\n---\n\n')
       },

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Launch an AI assistant interactively, seeded with grove system prompt (how to drive the CLI)
-# plus this project prompt (editable on the Project page -> _grove/prompt.md).
+# plus this project prompt (editable on the Project page -> _grove/prompt.md). The prompt reaches
+# the provider via files (claude: --append-system-prompt-file; codex: a throwaway -p profile
+# carrying developer_instructions), so its size is never limited by the command line.
 set -euo pipefail
 
 usage() {
@@ -145,7 +147,19 @@ NODE
   fi
 fi
 
-prompt="$(grove ai prompt)"
+# The grove + project prompt is handed to the provider through files, never on the command line:
+# a single argv string is capped at 128 KiB on Linux (MAX_ARG_STRLEN), and a space with a long
+# lessons history blows past that with "Argument list too long".
+prompt_file="$(mktemp "${TMPDIR:-/tmp}/grove-ai-prompt.XXXXXX")"
+codex_profile=""
+codex_profile_file=""
+cleanup() {
+  rm -f "$prompt_file"
+  [[ -n "$codex_profile_file" ]] && rm -f "$codex_profile_file"
+  return 0
+}
+trap cleanup EXIT
+grove ai prompt >"$prompt_file"
 
 # End-of-session upkeep pass: once the interactive session exits, continue that same conversation
 # non-interactively so the assistant can record what it was asked (the frequent-actions menu in
@@ -181,8 +195,21 @@ case "$provider" in
       exit 127
     fi
     if ((yolo)); then args=(--dangerously-bypass-approvals-and-sandbox "${args[@]}"); fi
+    # Codex has no prompt-file flag, but a profile config file (-p <name> layers
+    # $CODEX_HOME/<name>.config.toml over the user config) can carry `developer_instructions`,
+    # which Codex injects as a developer message — the equivalent of Claude's appended system prompt.
+    codex_home="${CODEX_HOME:-$HOME/.codex}"
+    mkdir -p "$codex_home"
+    codex_profile="grove-ai-$$"
+    codex_profile_file="$codex_home/$codex_profile.config.toml"
+    PROMPT_FILE="$prompt_file" node -e '
+      const fs = require("fs")
+      const prompt = fs.readFileSync(process.env.PROMPT_FILE, "utf8")
+      // JSON string escapes are a subset of TOML basic-string escapes, so this is valid TOML.
+      process.stdout.write(`developer_instructions = ${JSON.stringify(prompt)}\n`)
+    ' >"$codex_profile_file"
     set +e
-    codex "${config_args[@]}" "${args[@]}" "$prompt"
+    codex -p "$codex_profile" "${config_args[@]}" "${args[@]}"
     code=$?
     set -e
     run_maintenance
@@ -195,7 +222,7 @@ case "$provider" in
     fi
     if ((yolo)); then args=(--dangerously-skip-permissions "${args[@]}"); fi
     set +e
-    claude --append-system-prompt "$prompt" "${config_args[@]}" "${args[@]}"
+    claude --append-system-prompt-file "$prompt_file" "${config_args[@]}" "${args[@]}"
     code=$?
     set -e
     run_maintenance
