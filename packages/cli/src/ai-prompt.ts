@@ -52,8 +52,9 @@ const POSTAMBLE = `\nTips: most verbs print JSON. Pass --space <dir> to target a
 const SELF_IMPROVEMENT = `\nGetting better over time — you keep a running record of how your own work goes in a
 \`lessons\` collection, and learn from it:
 - **Read first.** A "# Past lessons" section at the very end of this prompt holds the digest plus
-  recent notes from earlier sessions. Treat it as standing guidance: apply what worked, avoid what
-  didn't, and don't repeat mistakes already recorded there.
+  the most recent notes from earlier sessions in full; older notes are only listed by slug (read one
+  with \`grove records read --slug lessons/<slug>\` when it looks relevant). Treat it as standing
+  guidance: apply what worked, avoid what didn't, and don't repeat mistakes already recorded there.
 - **Make sure the collection exists.** If there is no \`lessons\` collection yet, create it once:
   \`grove collections create --name lessons --entry editor\`.
 - **Evaluate yourself at the end.** Before you finish a session, do a short self-review pass: What
