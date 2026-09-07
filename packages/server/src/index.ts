@@ -5,6 +5,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 // selectable per request via `?space=<name>` (the grove_space cookie is only a fallback, so each
 // browser tab can sit in its own space); GROVE_SPACE forces single-space mode (e2e).
 import {
+  chmodSync,
   type Stats,
   existsSync,
   mkdirSync,
@@ -47,7 +48,32 @@ const HOST = process.env.GROVE_HOST
 // needs the token — via ?token=<t> (which then sets a cookie), the grove_token cookie, or a Bearer
 // header. Set GROVE_TOKEN to pin a value; GROVE_NO_AUTH=1 disables the check entirely.
 const AUTH = process.env.GROVE_NO_AUTH !== '1'
-const TOKEN = process.env.GROVE_TOKEN || randomBytes(16).toString('hex')
+const TOKEN_FILE = process.env.GROVE_TOKEN_FILE
+
+function tokenFromFile(path: string): string | undefined {
+  try {
+    return readFileSync(path, 'utf8').trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
+function resolveToken(): string {
+  if (process.env.GROVE_TOKEN) return process.env.GROVE_TOKEN
+  if (TOKEN_FILE) {
+    const existing = tokenFromFile(TOKEN_FILE)
+    if (existing) return existing
+  }
+  return randomBytes(16).toString('hex')
+}
+
+const TOKEN = resolveToken()
+
+if (AUTH && TOKEN_FILE) {
+  mkdirSync(dirname(TOKEN_FILE), { recursive: true, mode: 0o700 })
+  writeFileSync(TOKEN_FILE, `${TOKEN}\n`, { mode: 0o600 })
+  chmodSync(TOKEN_FILE, 0o600)
+}
 
 function isLoopback(req: IncomingMessage): boolean {
   const a = req.socket.remoteAddress ?? ''
@@ -803,6 +829,7 @@ server.listen(PORT, HOST, () => {
   )
   if (AUTH) {
     printAccess('access (token required off-box) — open:\n')
+    if (TOKEN_FILE) process.stdout.write(`token file: ${TOKEN_FILE}\n`)
     process.stdout.write('press Enter to reprint the access URL · GROVE_NO_AUTH=1 to disable\n')
     // Reprint the token URL whenever the operator hits Enter at the server console.
     if (process.stdin.isTTY) {
