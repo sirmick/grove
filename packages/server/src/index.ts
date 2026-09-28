@@ -1,12 +1,12 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 // grove server — read tier (static db/ + corpus + SSE change-feed), author tier (git commit /
 // worktree transaction) and dev tier (exec + pty), with a watcher per space. Multiple spaces are
 // selectable per request via `?space=<name>` (the grove_space cookie is only a fallback, so each
 // browser tab can sit in its own space); GROVE_SPACE forces single-space mode (e2e).
 import {
-  chmodSync,
   type Stats,
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -15,9 +15,14 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
+import {
+  type IncomingMessage,
+  type ServerResponse,
+  createServer as createHttpServer,
+} from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 import { createRequire } from 'node:module'
-import { homedir, networkInterfaces } from 'node:os'
+import { homedir, hostname, networkInterfaces } from 'node:os'
 import { basename, delimiter, dirname, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { DbMeta } from '@grove/core'
@@ -41,6 +46,54 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const APP_ROOT = join(ROOT, 'packages/app')
 const PORT = Number(process.env.GROVE_PORT ?? 5179)
 const HOST = process.env.GROVE_HOST
+const HTTPS = process.env.GROVE_HTTPS === '1' || process.env.GROVE_HTTPS === 'true'
+const PROTOCOL = HTTPS ? 'https' : 'http'
+
+// Grove stays plain HTTP by default for local development and tests. Set GROVE_HTTPS=1 to serve
+// HTTPS directly. When no certificate paths are supplied, cache a self-signed certificate under
+// $XDG_CONFIG_HOME/grove/tls (or ~/.config/grove/tls) so browser trust exceptions survive restarts.
+function tlsCredentials(): { cert: Buffer; key: Buffer } {
+  const configHome = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config')
+  const tlsDir = process.env.GROVE_TLS_DIR ?? join(configHome, 'grove', 'tls')
+  const certPath = process.env.GROVE_TLS_CERT ?? join(tlsDir, 'cert.pem')
+  const keyPath = process.env.GROVE_TLS_KEY ?? join(tlsDir, 'key.pem')
+  const customPair = Boolean(process.env.GROVE_TLS_CERT || process.env.GROVE_TLS_KEY)
+
+  if (customPair && !(process.env.GROVE_TLS_CERT && process.env.GROVE_TLS_KEY)) {
+    throw new Error('GROVE_TLS_CERT and GROVE_TLS_KEY must be set together')
+  }
+  if (!existsSync(certPath) || !existsSync(keyPath)) {
+    if (customPair)
+      throw new Error(`TLS certificate or key does not exist: ${certPath}, ${keyPath}`)
+    mkdirSync(tlsDir, { recursive: true, mode: 0o700 })
+    const names = new Set(['DNS:localhost', `DNS:${hostname()}`, 'IP:127.0.0.1', 'IP:::1'])
+    for (const ifaces of Object.values(networkInterfaces())) {
+      for (const i of ifaces ?? []) if (!i.internal) names.add(`IP:${i.address}`)
+    }
+    execFileSync('openssl', [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-nodes',
+      '-keyout',
+      keyPath,
+      '-out',
+      certPath,
+      '-days',
+      '825',
+      '-subj',
+      `/CN=${hostname()}`,
+      '-addext',
+      `subjectAltName=${[...names].join(',')}`,
+    ])
+    chmodSync(tlsDir, 0o700)
+    chmodSync(keyPath, 0o600)
+    chmodSync(certPath, 0o644)
+  }
+  return { cert: readFileSync(certPath), key: readFileSync(keyPath) }
+}
 
 // ── Access token ──────────────────────────────────────────────────────────────────────────────
 // The dev tier exposes /exec + /pty (arbitrary command execution), so a server reachable off-box
@@ -104,12 +157,11 @@ function authorized(req: IncomingMessage): boolean {
 function accessUrls(): string[] {
   const q = AUTH ? `/?token=${TOKEN}` : ''
   const exposed = !HOST || HOST === '0.0.0.0' || HOST === '::'
-  if (!exposed) return [`http://${HOST}:${PORT}${q}`]
-  const urls = [`http://localhost:${PORT}${q}`]
+  if (!exposed) return [`${PROTOCOL}://${HOST}:${PORT}${q}`]
+  const urls = [`${PROTOCOL}://localhost:${PORT}${q}`]
   for (const ifaces of Object.values(networkInterfaces())) {
-    for (const i of ifaces ?? []) {
-      if (i.family === 'IPv4' && !i.internal) urls.push(`http://${i.address}:${PORT}${q}`)
-    }
+    for (const i of ifaces ?? [])
+      if (i.family === 'IPv4' && !i.internal) urls.push(`${PROTOCOL}://${i.address}:${PORT}${q}`)
   }
   return urls
 }
@@ -765,7 +817,9 @@ interface ViteServer {
   close(): Promise<void>
 }
 
-async function createViteMiddlewareServer(server: Server): Promise<ViteServer | undefined> {
+type GroveServer = ReturnType<typeof createHttpServer> | ReturnType<typeof createHttpsServer>
+
+async function createViteMiddlewareServer(server: GroveServer): Promise<ViteServer | undefined> {
   if (!DEBUG_APP) return undefined
   const appRequire = createRequire(join(APP_ROOT, 'package.json'))
   const viteEntry = appRequire.resolve('vite')
@@ -784,7 +838,7 @@ async function createViteMiddlewareServer(server: Server): Promise<ViteServer | 
 }
 
 const honoRequest = getRequestListener(app.fetch)
-const server = createServer()
+const server = HTTPS ? createHttpsServer(tlsCredentials()) : createHttpServer()
 const vite = await createViteMiddlewareServer(server)
 
 server.on('request', (req, res) => {
@@ -802,7 +856,10 @@ server.on('request', (req, res) => {
     if (q && tokenEq(q)) {
       u.searchParams.delete('token')
       res.statusCode = 302
-      res.setHeader('Set-Cookie', `grove_token=${TOKEN}; Path=/; SameSite=Lax; HttpOnly`)
+      res.setHeader(
+        'Set-Cookie',
+        `grove_token=${TOKEN}; Path=/; SameSite=Lax; HttpOnly${HTTPS ? '; Secure' : ''}`,
+      )
       res.setHeader('Location', `${u.pathname}${u.search}${u.hash}` || '/')
       res.end()
       return
@@ -823,7 +880,7 @@ server.on('request', (req, res) => {
 })
 
 server.listen(PORT, HOST, () => {
-  const appUrl = `http://${HOST && HOST !== '0.0.0.0' ? HOST : 'localhost'}:${PORT}`
+  const appUrl = `${PROTOCOL}://${HOST && HOST !== '0.0.0.0' ? HOST : 'localhost'}:${PORT}`
   process.stdout.write(
     `grove ${DEBUG_APP ? 'debug stack' : 'server'} on ${appUrl} (${SINGLE ? `space ${basename(SINGLE)}` : `spaces ${SPACES_ROOTS.join(', ') || '(none)'}`}, default ${defaultSpace()})\n`,
   )

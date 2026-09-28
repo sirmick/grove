@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run grove as a single debug stack: one Node server hosts the Hono API, PTY, SSE, and the Vite app.
 #
-# Open http://localhost:13000 (or http://<this-host-ip>:13000 when GROVE_HOST=0.0.0.0).
+# Open https://localhost:13000 (or https://<this-host-ip>:13000 when GROVE_HOST=0.0.0.0).
 # Override env vars before this script to change ports, host, or spaces.
 #
 # Auth: binding 0.0.0.0 exposes /exec + /pty (command execution), so off-box access requires the
@@ -15,6 +15,9 @@ export GROVE_DEFAULT_SPACE="${GROVE_DEFAULT_SPACE:-demo}"
 export GROVE_PORT="${GROVE_PORT:-13000}"
 export GROVE_HOST="${GROVE_HOST:-0.0.0.0}"
 export GROVE_DEBUG="${GROVE_DEBUG:-1}"
+export GROVE_HTTPS="${GROVE_HTTPS:-1}"
 
-echo "grove debug -> http://${GROVE_HOST}:${GROVE_PORT}  ·  spaces ${GROVE_SPACES_ROOTS} (default ${GROVE_DEFAULT_SPACE})"
+scheme=http
+[[ "$GROVE_HTTPS" == "1" || "$GROVE_HTTPS" == "true" ]] && scheme=https
+echo "grove debug -> ${scheme}://${GROVE_HOST}:${GROVE_PORT}  ·  spaces ${GROVE_SPACES_ROOTS} (default ${GROVE_DEFAULT_SPACE})"
 exec node --import tsx packages/server/src/index.ts

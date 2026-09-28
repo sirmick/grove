@@ -34,7 +34,8 @@ network-exposed instance (app on `0.0.0.0:13000`, server on `:13001`); open
 `http://<host-ip>:13000`. Both honor the env vars below (e.g. `VITE_PORT=8080 ./dev.sh`).
 
 For a single-process debug stack, run **`./run.sh`**. It mounts the Vite app inside the grove server
-so app, API, SSE, and PTY all share `GROVE_PORT` (default `13000`).
+so app, API, SSE, and PTY all share `GROVE_PORT` (default `13000`). The helper enables HTTPS by
+default and caches a self-signed certificate under `~/.config/grove/tls`.
 
 Useful env vars:
 
@@ -45,6 +46,8 @@ Useful env vars:
 | `GROVE_SPACE` | force **single-space** mode at this path (used by e2e) |
 | `VITE_PORT` / `GROVE_PORT` | split dev app / server ports (default `5180` / `5179`); `run.sh` uses `GROVE_PORT` for the merged server |
 | `VITE_HOST` / `GROVE_HOST` | set to `0.0.0.0` to expose on the network |
+| `GROVE_HTTPS` | set to `1` for native HTTPS (`run.sh` defaults to `1`) |
+| `GROVE_TLS_CERT` / `GROVE_TLS_KEY` | optional PEM certificate/key pair; otherwise a cached self-signed pair is generated |
 
 ## CLI
 
